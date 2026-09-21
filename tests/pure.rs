@@ -16,13 +16,14 @@
 //!
 //! Run just this file with `cargo test --test pure`.
 
-use std::path::Path;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
-use probe::editor::editor_command;
+use probe::editor::{choose_editor, editor_command};
 use probe::log::{
     format_id, log_filename, parse_id, parse_log_filename, slugify, trailing_empty_section_line,
 };
-use probe::template::{DEFAULT_TEMPLATE, TemplateVars, render_template};
+use probe::template::{DEFAULT_TEMPLATE, TemplateVars, render_template, template_path_from};
 
 // ---------------------------------------------------------------------------
 // slugify
@@ -382,6 +383,66 @@ fn unknown_editors_get_the_bare_path() {
 fn blank_editor_yields_nothing_to_run() {
     assert!(editor_command("", path(), None).is_none());
     assert!(editor_command("   ", path(), Some(3)).is_none());
+}
+
+#[test]
+fn visual_wins_over_editor() {
+    assert_eq!(
+        choose_editor(Some("code --wait"), Some("vim")),
+        "code --wait"
+    );
+}
+
+#[test]
+fn editor_is_used_when_visual_is_unset_or_blank() {
+    assert_eq!(choose_editor(None, Some("vim")), "vim");
+    assert_eq!(choose_editor(Some(""), Some("vim")), "vim");
+    assert_eq!(choose_editor(Some("  "), Some("vim")), "vim");
+}
+
+#[test]
+fn vi_is_the_last_resort() {
+    // The Unix convention, same as git and crontab.
+    assert_eq!(choose_editor(None, None), "vi");
+    assert_eq!(choose_editor(Some(""), Some(" ")), "vi");
+}
+
+// ---------------------------------------------------------------------------
+// template location
+// ---------------------------------------------------------------------------
+
+fn os(s: &str) -> Option<OsString> {
+    Some(OsString::from(s))
+}
+
+#[test]
+fn template_lives_under_xdg_config_home() {
+    assert_eq!(
+        template_path_from(os("/xdg"), os("/home/me")),
+        Some(PathBuf::from("/xdg/probe/template.md"))
+    );
+}
+
+#[test]
+fn template_falls_back_to_dot_config() {
+    assert_eq!(
+        template_path_from(None, os("/home/me")),
+        Some(PathBuf::from("/home/me/.config/probe/template.md"))
+    );
+}
+
+#[test]
+fn empty_or_relative_xdg_config_home_is_ignored() {
+    // Per the XDG Base Directory spec.
+    let expected = Some(PathBuf::from("/home/me/.config/probe/template.md"));
+    assert_eq!(template_path_from(os(""), os("/home/me")), expected);
+    assert_eq!(template_path_from(os("rel/dir"), os("/home/me")), expected);
+}
+
+#[test]
+fn no_config_location_means_no_template_path() {
+    assert_eq!(template_path_from(None, None), None);
+    assert_eq!(template_path_from(os(""), os("")), None);
 }
 
 // ---------------------------------------------------------------------------
