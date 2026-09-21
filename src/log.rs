@@ -185,22 +185,60 @@ pub struct LogSummary {
     pub last_activity: Option<DateTime>,
 }
 
-/// Every log in `logs_dir`, most recently active first. Logs with no known
-/// activity come last; ties go to the higher ID.
-pub fn recent_logs(logs_dir: &Path) -> Result<Vec<LogSummary>> {
+/// Every log in `logs_dir` with its content, most recently active first. Logs
+/// with no known activity come last; ties go to the higher ID.
+fn load_logs(logs_dir: &Path) -> Result<Vec<(LogSummary, String)>> {
     let mut logs = Vec::new();
     for (file, path) in list_logs(logs_dir)? {
         let bytes =
             fs::read(&path).with_context(|| format!("could not read {}", path.display()))?;
-        let content = String::from_utf8_lossy(&bytes);
-        logs.push(LogSummary {
+        let content = String::from_utf8_lossy(&bytes).into_owned();
+        let summary = LogSummary {
             id: file.id,
             title: log_title(&content).unwrap_or(&file.slug).to_string(),
             last_activity: last_activity(&content, file.date.as_deref()),
-        });
+        };
+        logs.push((summary, content));
     }
-    logs.sort_by_key(|l| Reverse((l.last_activity, l.id)));
+    logs.sort_by_key(|(l, _)| Reverse((l.last_activity, l.id)));
     Ok(logs)
+}
+
+/// Every log in `logs_dir`, most recently active first.
+pub fn recent_logs(logs_dir: &Path) -> Result<Vec<LogSummary>> {
+    Ok(load_logs(logs_dir)?.into_iter().map(|(l, _)| l).collect())
+}
+
+/// The lines of `content` containing `query`, ignoring case, with their
+/// 1-based line numbers. The query is literal text, not a pattern.
+pub fn matching_lines<'a>(content: &'a str, query: &str) -> Vec<(usize, &'a str)> {
+    let query = query.to_lowercase();
+    content
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.to_lowercase().contains(&query))
+        .map(|(i, line)| (i + 1, line.trim_end()))
+        .collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchHit {
+    pub log: LogSummary,
+    pub lines: Vec<(usize, String)>,
+}
+
+/// The logs in `logs_dir` mentioning `query`, most recently active first.
+pub fn search_logs(logs_dir: &Path, query: &str) -> Result<Vec<SearchHit>> {
+    Ok(load_logs(logs_dir)?
+        .into_iter()
+        .filter_map(|(log, content)| {
+            let lines: Vec<(usize, String)> = matching_lines(&content, query)
+                .into_iter()
+                .map(|(n, line)| (n, line.to_string()))
+                .collect();
+            (!lines.is_empty()).then_some(SearchHit { log, lines })
+        })
+        .collect())
 }
 
 /// Every log directly inside `logs_dir`, in no particular order. A missing

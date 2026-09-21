@@ -22,8 +22,8 @@ use std::path::{Path, PathBuf};
 use probe::clock::parse_timestamp;
 use probe::editor::{choose_editor, editor_command};
 use probe::log::{
-    format_id, last_activity, log_filename, log_title, parse_id, parse_log_filename, slugify,
-    trailing_empty_section_line,
+    format_id, last_activity, log_filename, log_title, matching_lines, parse_id,
+    parse_log_filename, slugify, trailing_empty_section_line,
 };
 use probe::template::{DEFAULT_TEMPLATE, TemplateVars, render_template, template_path_from};
 
@@ -607,4 +607,46 @@ fn malformed_timestamps_are_ignored_not_fatal() {
     );
     assert_eq!(last_activity(log, None), None);
     assert_eq!(last_activity(log, Some("2026-99-99")), None);
+}
+
+// ---------------------------------------------------------------------------
+// search matching
+// ---------------------------------------------------------------------------
+
+#[test]
+fn matching_lines_are_numbered_from_one() {
+    let log = "# CFL\n\nno\nthe CFL condition\n";
+    assert_eq!(
+        matching_lines(log, "CFL"),
+        [(1, "# CFL"), (4, "the CFL condition")]
+    );
+}
+
+#[test]
+fn matching_ignores_case_including_accents() {
+    assert_eq!(
+        matching_lines("Précision numérique\n", "PRÉCISION"),
+        [(1, "Précision numérique")]
+    );
+    assert_eq!(
+        matching_lines("the CFL number\n", "cfl"),
+        [(1, "the CFL number")]
+    );
+}
+
+#[test]
+fn matching_is_literal_not_a_pattern() {
+    let line = "dt*2 (x+y)? a.b/c [k] \\d";
+    for q in ["dt*2", "(x+y)?", "a.b/c", "[k]", "\\d", "x+y"] {
+        assert_eq!(matching_lines(line, q), [(1, line)], "for {q:?}");
+    }
+    for q in ["d.*2", "xy", "a.c", "k]]"] {
+        assert!(matching_lines(line, q).is_empty(), "for {q:?}");
+    }
+}
+
+#[test]
+fn matching_does_not_span_lines_and_strips_line_endings() {
+    assert!(matching_lines("the CFL\ncondition\n", "CFL condition").is_empty());
+    assert_eq!(matching_lines("a CFL \r\nb\r\n", "cfl"), [(1, "a CFL")]);
 }

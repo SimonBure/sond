@@ -1,6 +1,7 @@
 use std::io::{self, ErrorKind, Write};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
@@ -31,6 +32,12 @@ enum Command {
         /// ID of the log, e.g. R042 (the R and leading zeros are optional)
         id: String,
     },
+    /// Find the logs that mention a phrase (literal, case-insensitive)
+    Search {
+        /// Text to look for; quoting it is optional
+        #[arg(required = true, num_args = 1..)]
+        query: Vec<String>,
+    },
     /// List investigations, most recently active first
     Recent {
         /// How many to show
@@ -55,16 +62,18 @@ enum TemplateCommand {
     },
 }
 
-fn main() -> Result<()> {
-    match Cli::parse().command {
+fn main() -> Result<ExitCode> {
+    let done = match Cli::parse().command {
         Command::New { title } => new(&title.join(" ")),
         Command::Poke { id } => poke(&id),
+        Command::Search { query } => return search(&query.join(" ")),
         Command::Recent { limit } => recent(limit.get()),
         Command::Template { command } => match command {
             TemplateCommand::Edit => template_edit(),
             TemplateCommand::Set { file } => template_set(&file),
         },
-    }
+    };
+    done.map(|()| ExitCode::SUCCESS)
 }
 
 fn new(title: &str) -> Result<()> {
@@ -92,6 +101,33 @@ fn poke(id: &str) -> Result<()> {
     editor::open(&path, Some(heading + 1))
 }
 
+/// Exits 1 when nothing matches, like `grep`.
+fn search(query: &str) -> Result<ExitCode> {
+    let query = query.trim();
+    if query.is_empty() {
+        bail!("search query must not be empty");
+    }
+
+    let hits = log::search_logs(Path::new(LOGS_DIR), query)?;
+    if hits.is_empty() {
+        eprintln!("no log mentions {query:?}");
+        return Ok(ExitCode::FAILURE);
+    }
+
+    let groups: Vec<String> = hits
+        .iter()
+        .map(|hit| {
+            let mut group = format!("{}  {}\n", log::format_id(hit.log.id), hit.log.title);
+            for (n, line) in &hit.lines {
+                group.push_str(&format!("{n:>4}: {line}\n"));
+            }
+            group
+        })
+        .collect();
+    print(&groups.join("\n"))?;
+    Ok(ExitCode::SUCCESS)
+}
+
 fn recent(limit: usize) -> Result<()> {
     let logs = log::recent_logs(Path::new(LOGS_DIR))?;
     if logs.is_empty() {
@@ -105,25 +141,28 @@ fn recent(limit: usize) -> Result<()> {
         .map(|l| log::format_id(l.id).len())
         .max()
         .unwrap_or(0);
-    let mut out = io::stdout().lock();
+    let mut out = String::new();
     for l in shown {
         let when = l.last_activity.map_or_else(
             || "-".to_string(),
             |t| t.strftime(clock::TIMESTAMP_FORMAT).to_string(),
         );
-        let written = writeln!(
-            out,
-            "{:<width$}  {when:<16}  {}",
+        out.push_str(&format!(
+            "{:<width$}  {when:<16}  {}\n",
             log::format_id(l.id),
             l.title
-        );
-        match written {
-            // `probe recent | head` closing the pipe early is not an error.
-            Err(e) if e.kind() == ErrorKind::BrokenPipe => return Ok(()),
-            written => written?,
-        }
+        ));
     }
-    Ok(())
+    print(&out)
+}
+
+/// Writes `text` to stdout. A reader that stops early, as in
+/// `probe recent | head`, is not an error.
+fn print(text: &str) -> Result<()> {
+    match io::stdout().lock().write_all(text.as_bytes()) {
+        Err(e) if e.kind() == ErrorKind::BrokenPipe => Ok(()),
+        written => Ok(written?),
+    }
 }
 
 fn template_edit() -> Result<()> {
