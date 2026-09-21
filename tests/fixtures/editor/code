@@ -1,0 +1,5 @@
+#!/bin/sh
+# Named `code` so Probe passes it VS Code's `--goto path:line` arguments.
+# Otherwise identical to fake-editor.sh. Checked in executable: generating it
+# at test time would race with other tests' fork/exec (ETXTBSY).
+exec /bin/sh "$(dirname "$0")/fake-editor.sh" "$@"

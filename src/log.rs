@@ -7,7 +7,7 @@ use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use jiff::civil::DateTime;
 
 use crate::clock::{DATE_FORMAT, TIMESTAMP_FORMAT};
@@ -151,25 +151,89 @@ fn is_dated_heading(line: &str) -> bool {
         .is_some_and(|rest| has_shape(rest, "dddd-dd-dd dd:dd"))
 }
 
-/// One more than the highest ID in `logs_dir`, so IDs are never reused while
-/// the highest log still exists.
-pub fn next_id(logs_dir: &Path) -> Result<u32> {
+/// Every log directly inside `logs_dir`, in no particular order. A missing
+/// directory has no logs.
+pub fn list_logs(logs_dir: &Path) -> Result<Vec<(LogFile, PathBuf)>> {
     let entries = match fs::read_dir(logs_dir) {
         Ok(entries) => entries,
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(1),
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => {
             return Err(e).with_context(|| format!("could not read {}", logs_dir.display()));
         }
     };
 
-    let mut highest = 0;
+    let mut logs = Vec::new();
     for entry in entries {
         let entry = entry.with_context(|| format!("could not read {}", logs_dir.display()))?;
         if let Some(log) = entry.file_name().to_str().and_then(parse_log_filename) {
-            highest = highest.max(log.id);
+            logs.push((log, entry.path()));
         }
     }
+    Ok(logs)
+}
+
+/// One more than the highest ID in `logs_dir`, so IDs are never reused while
+/// the highest log still exists.
+pub fn next_id(logs_dir: &Path) -> Result<u32> {
+    let highest = list_logs(logs_dir)?
+        .iter()
+        .map(|(log, _)| log.id)
+        .max()
+        .unwrap_or(0);
     highest.checked_add(1).context("log IDs are exhausted")
+}
+
+/// The path of the log with this ID. Two files claiming the same ID is an
+/// error rather than a guess.
+pub fn find_log(logs_dir: &Path, id: u32) -> Result<PathBuf> {
+    let mut matches: Vec<PathBuf> = list_logs(logs_dir)?
+        .into_iter()
+        .filter(|(log, _)| log.id == id)
+        .map(|(_, path)| path)
+        .collect();
+    matches.sort();
+
+    match matches.len() {
+        0 => bail!("no log with ID {} in {}", format_id(id), logs_dir.display()),
+        1 => Ok(matches.remove(0)),
+        _ => {
+            let names: Vec<String> = matches.iter().map(|p| p.display().to_string()).collect();
+            bail!(
+                "ID {} is used by more than one log; rename all but one:\n  {}",
+                format_id(id),
+                names.join("\n  ")
+            )
+        }
+    }
+}
+
+/// Opens a new dated section at the end of the log and returns the 1-based
+/// line of its heading. If the last section is a dated one the user left
+/// empty, that section is reused instead. The file is only ever appended to.
+pub fn poke_log(path: &Path, now: DateTime) -> Result<usize> {
+    let existing = fs::read(path).with_context(|| format!("could not read {}", path.display()))?;
+    if let Some(line) = trailing_empty_section_line(&String::from_utf8_lossy(&existing)) {
+        return Ok(line);
+    }
+
+    let mut section = String::new();
+    if !existing.is_empty() && !existing.ends_with(b"\n") {
+        section.push('\n');
+    }
+    // Everything before the heading now ends in a newline, so the heading is
+    // four lines past the last existing line: blank, `---`, blank, heading.
+    let lines_before = existing.iter().filter(|&&b| b == b'\n').count() + section.len();
+    section.push_str(&format!(
+        "\n---\n\n## {}\n\n",
+        now.strftime(TIMESTAMP_FORMAT)
+    ));
+
+    OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut file| file.write_all(section.as_bytes()))
+        .with_context(|| format!("could not append to {}", path.display()))?;
+    Ok(lines_before + 4)
 }
 
 /// Creates a new log in `logs_dir` from `template` and returns its path.
