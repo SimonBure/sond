@@ -3,6 +3,7 @@
 //! The filename is the index. Only its `R<id>-` prefix is load-bearing; the
 //! date and slug are there for humans and for `ls` ordering.
 
+use std::cmp::Reverse;
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
@@ -10,7 +11,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use jiff::civil::DateTime;
 
-use crate::clock::{DATE_FORMAT, TIMESTAMP_FORMAT};
+use crate::clock::{DATE_FORMAT, TIMESTAMP_FORMAT, parse_timestamp};
 use crate::template::{TemplateVars, render_template};
 
 const MAX_SLUG_LEN: usize = 60;
@@ -149,6 +150,57 @@ fn is_dated_heading(line: &str) -> bool {
     line.trim_end()
         .strip_prefix("## ")
         .is_some_and(|rest| has_shape(rest, "dddd-dd-dd dd:dd"))
+}
+
+/// The text of the first `# ` heading, if it has any.
+pub fn log_title(content: &str) -> Option<&str> {
+    content
+        .lines()
+        .find_map(|l| l.strip_prefix("# "))
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+}
+
+/// When the log was last worked on, according to what Probe wrote into it:
+/// the latest of its `Created:` line, its dated sections, and `file_date` (the
+/// date from its filename, at midnight). Unparseable timestamps are skipped.
+pub fn last_activity(content: &str, file_date: Option<&str>) -> Option<DateTime> {
+    let created = content
+        .lines()
+        .find_map(|l| l.strip_prefix("Created:"))
+        .and_then(|t| parse_timestamp(t).ok());
+    let sections = content
+        .lines()
+        .filter(|l| is_dated_heading(l))
+        .filter_map(|l| parse_timestamp(&l.trim_end()["## ".len()..]).ok());
+    let filed = file_date.and_then(|d| parse_timestamp(&format!("{d} 00:00")).ok());
+
+    created.into_iter().chain(sections).chain(filed).max()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LogSummary {
+    pub id: u32,
+    pub title: String,
+    pub last_activity: Option<DateTime>,
+}
+
+/// Every log in `logs_dir`, most recently active first. Logs with no known
+/// activity come last; ties go to the higher ID.
+pub fn recent_logs(logs_dir: &Path) -> Result<Vec<LogSummary>> {
+    let mut logs = Vec::new();
+    for (file, path) in list_logs(logs_dir)? {
+        let bytes =
+            fs::read(&path).with_context(|| format!("could not read {}", path.display()))?;
+        let content = String::from_utf8_lossy(&bytes);
+        logs.push(LogSummary {
+            id: file.id,
+            title: log_title(&content).unwrap_or(&file.slug).to_string(),
+            last_activity: last_activity(&content, file.date.as_deref()),
+        });
+    }
+    logs.sort_by_key(|l| Reverse((l.last_activity, l.id)));
+    Ok(logs)
 }
 
 /// Every log directly inside `logs_dir`, in no particular order. A missing

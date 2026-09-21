@@ -19,9 +19,11 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+use probe::clock::parse_timestamp;
 use probe::editor::{choose_editor, editor_command};
 use probe::log::{
-    format_id, log_filename, parse_id, parse_log_filename, slugify, trailing_empty_section_line,
+    format_id, last_activity, log_filename, log_title, parse_id, parse_log_filename, slugify,
+    trailing_empty_section_line,
 };
 use probe::template::{DEFAULT_TEMPLATE, TemplateVars, render_template, template_path_from};
 
@@ -546,4 +548,63 @@ fn a_trailing_separator_still_counts_as_empty() {
     // but a `---` *after* the heading is content the user chose to leave.
     let c = "# T\n\n## 2026-08-19 14:32\n   \n\t\n";
     assert_eq!(trailing_empty_section_line(c), Some(3));
+}
+
+// ---------------------------------------------------------------------------
+// what `recent` reads out of a log
+// ---------------------------------------------------------------------------
+
+fn at(s: &str) -> Option<jiff::civil::DateTime> {
+    Some(parse_timestamp(s).unwrap())
+}
+
+#[test]
+fn title_is_the_first_top_level_heading() {
+    assert_eq!(
+        log_title("# Adaptive timestep\n\n# Later\n"),
+        Some("Adaptive timestep")
+    );
+    assert_eq!(log_title("preamble\n#  Spaced  \n"), Some("Spaced"));
+    assert_eq!(log_title("## Not top level\n#hashtag\n"), None);
+    assert_eq!(log_title("#  \n"), None);
+    assert_eq!(log_title(""), None);
+}
+
+#[test]
+fn activity_is_the_latest_of_created_and_poke_sections() {
+    let log = "# T\n\nCreated: 2026-09-18 09:30\n\n---\n\n## 2026-09-20 10:00\n\nx\n\n---\n\n## 2026-09-19 08:00\n";
+    assert_eq!(
+        last_activity(log, Some("2026-09-18")),
+        at("2026-09-20 10:00")
+    );
+}
+
+#[test]
+fn activity_is_created_when_never_poked() {
+    let log = "# T\n\nCreated: 2026-09-18 09:30\nID: R001\n";
+    assert_eq!(
+        last_activity(log, Some("2026-09-18")),
+        at("2026-09-18 09:30")
+    );
+}
+
+#[test]
+fn activity_falls_back_to_the_filename_date_at_midnight() {
+    // A custom template may say `Started:` instead of `Created:`.
+    let log = "# T\n\nStarted: 2026-09-18 09:30\n";
+    assert_eq!(
+        last_activity(log, Some("2026-09-10")),
+        at("2026-09-10 00:00")
+    );
+}
+
+#[test]
+fn malformed_timestamps_are_ignored_not_fatal() {
+    let log = "Created: yesterday\n## 2026-9-1 10:00\n## 2026-13-45 99:99\n";
+    assert_eq!(
+        last_activity(log, Some("2026-09-10")),
+        at("2026-09-10 00:00")
+    );
+    assert_eq!(last_activity(log, None), None);
+    assert_eq!(last_activity(log, Some("2026-99-99")), None);
 }
