@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
@@ -29,12 +29,32 @@ enum Command {
         /// ID of the log, e.g. R042 (the R and leading zeros are optional)
         id: String,
     },
+    /// Manage the template new logs are created from
+    Template {
+        #[command(subcommand)]
+        command: TemplateCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum TemplateCommand {
+    /// Open the template in your editor, starting from the default if there is none
+    Edit,
+    /// Use a copy of FILE as the template for new logs
+    Set {
+        /// Markdown file to copy
+        file: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
     match Cli::parse().command {
         Command::New { title } => new(&title.join(" ")),
         Command::Poke { id } => poke(&id),
+        Command::Template { command } => match command {
+            TemplateCommand::Edit => template_edit(),
+            TemplateCommand::Set { file } => template_set(&file),
+        },
     }
 }
 
@@ -61,4 +81,25 @@ fn poke(id: &str) -> Result<()> {
 
     println!("{}", path.display());
     editor::open(&path, Some(heading + 1))
+}
+
+fn template_edit() -> Result<()> {
+    let path = template_file()?;
+    template::ensure_template(&path)?;
+
+    println!("{}", path.display());
+    editor::open(&path, None)
+}
+
+fn template_set(source: &Path) -> Result<()> {
+    let path = template_file()?;
+    template::install_template(source, &path)?;
+
+    println!("{}", path.display());
+    Ok(())
+}
+
+fn template_file() -> Result<PathBuf> {
+    template::template_path()
+        .context("cannot locate the config directory: set HOME or XDG_CONFIG_HOME")
 }

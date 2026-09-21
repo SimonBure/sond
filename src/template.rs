@@ -4,11 +4,11 @@
 //! variables it owns and leaves everything else in the file exactly as written.
 
 use std::ffi::OsString;
-use std::fs;
-use std::io::ErrorKind;
+use std::fs::{self, OpenOptions};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 
 /// Used when the user has not configured a template of their own.
 pub const DEFAULT_TEMPLATE: &str = "\
@@ -106,4 +106,52 @@ pub fn load_template(path: Option<&Path>) -> Result<String> {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(DEFAULT_TEMPLATE.to_string()),
         Err(e) => Err(e).with_context(|| format!("could not read template {}", path.display())),
     }
+}
+
+/// Makes a copy of `source` the template at `dest`. The previous template is
+/// replaced atomically, so on failure it is left exactly as it was.
+pub fn install_template(source: &Path, dest: &Path) -> Result<()> {
+    let bytes = fs::read(source).with_context(|| format!("could not read {}", source.display()))?;
+    let content =
+        String::from_utf8(bytes).map_err(|_| anyhow!("{} is not valid UTF-8", source.display()))?;
+    write_atomically(dest, content.as_bytes())
+}
+
+/// Writes `content` to a temporary file beside `dest`, then renames it over
+/// `dest`. Readers see either the old file or the new one, never a mix.
+fn write_atomically(dest: &Path, content: &[u8]) -> Result<()> {
+    let dir = create_parent(dest)?;
+    let name = dest.file_name().unwrap_or_default().to_string_lossy();
+    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+
+    let written = fs::write(&tmp, content).and_then(|()| fs::rename(&tmp, dest));
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written.with_context(|| format!("could not write {}", dest.display()))
+}
+
+/// Writes the default template to `path` unless a template is already there.
+pub fn ensure_template(path: &Path) -> Result<()> {
+    create_parent(path)?;
+    match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(mut file) => file
+            .write_all(DEFAULT_TEMPLATE.as_bytes())
+            .with_context(|| format!("could not write {}", path.display())),
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+            if path.is_dir() {
+                bail!("{} is a directory, not a template", path.display());
+            }
+            Ok(())
+        }
+        Err(e) => Err(e).with_context(|| format!("could not create {}", path.display())),
+    }
+}
+
+fn create_parent(path: &Path) -> Result<&Path> {
+    let dir = path
+        .parent()
+        .with_context(|| format!("{} has no parent directory", path.display()))?;
+    fs::create_dir_all(dir).with_context(|| format!("could not create {}", dir.display()))?;
+    Ok(dir)
 }

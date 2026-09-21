@@ -83,11 +83,27 @@ impl Project {
         fs::write(self.logs_dir().join(name), content).unwrap();
     }
 
+    /// Where Probe keeps the user's template in this project's environment.
+    pub fn template_file(&self) -> PathBuf {
+        self.config.join("probe/template.md")
+    }
+
     /// Installs `content` as the user's template.
     pub fn set_template(&self, content: &str) {
-        let dir = self.config.join("probe");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("template.md"), content).unwrap();
+        fs::create_dir_all(self.config.join("probe")).unwrap();
+        fs::write(self.template_file(), content).unwrap();
+    }
+
+    /// Names of the entries in the template's directory, sorted.
+    pub fn config_names(&self) -> Vec<String> {
+        let Ok(entries) = fs::read_dir(self.config.join("probe")) else {
+            return Vec::new();
+        };
+        let mut names: Vec<String> = entries
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
     }
 
     /// `probe` with a hermetic environment, run from the project directory.
