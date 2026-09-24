@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none" role="img" aria-label="sond">
+<g transform="translate(32 32) rotate(45) scale(0.78) translate(-32 -25)">
+<path d="M26.34 5.34A8 8 0 0 1 37.66 5.34" stroke="#4B3BFF" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M23.16 2.16A12.5 12.5 0 0 1 40.84 2.16" stroke="#4B3BFF" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M19.98 -0.98A17 17 0 0 1 44.02 -0.98" stroke="#4B3BFF" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M12 22H52" stroke="#121214" stroke-width="3.5" stroke-linecap="round"/>
+<path d="M12 22A20 13 0 0 0 52 22" stroke="#121214" stroke-width="3.5" stroke-linecap="round"/>
+<path d="M32 30V15" stroke="#121214" stroke-width="3"/>
+<circle cx="32" cy="11" r="4" fill="#4B3BFF"/>
+<rect x="26" y="36" width="12" height="15" rx="2.5" stroke="#121214" stroke-width="3.5"/>
+<rect x="4" y="38" width="18" height="10" rx="2" stroke="#8E8E96" stroke-width="3"/>
+<rect x="42" y="38" width="18" height="10" rx="2" stroke="#8E8E96" stroke-width="3"/>
+</g>
+</svg>

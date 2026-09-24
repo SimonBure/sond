@@ -1,12 +1,18 @@
-# Probe
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/sond-header-dark.svg">
+    <img src="assets/sond-header.svg" alt="sond" width="239" height="80">
+  </picture>
+</p>
 
-Append-only research logs, stored as Markdown next to your code.
+Append-only research logs, stored as Markdown next to your code or your project.
 
-A Probe log represents one investigation. `new` starts one, `poke` continues
+The name is the French *sonder*, to probe or to sound out, cut short.
+
+A Sond log represents one investigation. `new` starts one, `poke` continues
 it, `search` finds past investigations, and `recent` shows what you have been
-working on. Logs are ordinary
-Markdown files in `./logs/`: no database, no Git requirement, readable and
-searchable with any editor, `grep`, or `rg`.
+working on. Logs are ordinary Markdown files in `./logs/`: no database, no Git
+requirement, readable and searchable with any editor, `grep`, or `rg`.
 
 ## Install
 
@@ -17,26 +23,26 @@ cargo install --path .
 ## Usage
 
 ```sh
-probe new Adaptive timestep instability   # quotes optional
+sond new Adaptive timestep instability   # quotes optional
 # logs/R001-2026-09-21-adaptive-timestep-instability.md, opened in $EDITOR
 
-probe poke R001                           # also R1, r001, 1
+sond poke R001                           # also R1, r001, 1
 # appends a dated section and reopens the same file
 
-probe search CFL instability              # quotes optional
+sond search CFL instability              # quotes optional
 # R001  Adaptive timestep instability
 #   12: Unstable once the CFL instability kicks in at dt > 0.01.
 
-probe recent                              # newest first, 10 by default
+sond recent                              # newest first, 10 by default
 # R001  2026-09-22 08:30  Adaptive timestep instability
 
-probe recent -n 3
+sond recent -n 3
 
-probe template edit                       # starts from the default template
-probe template set ~/notes/template.md    # installs a copy
+sond template edit                       # starts from the default template
+sond template set ~/notes/template.md    # installs a copy
 ```
 
-`new`, `poke` and `template` print the path of the file they touch. Probe runs
+`new`, `poke` and `template` print the path of the file they touch. Sond runs
 relative to the current directory.
 
 ## How it works
@@ -59,8 +65,8 @@ relative to the current directory.
   line numbers. It exits 1 when nothing matches, like `grep`.
 - **recent** orders logs by the latest of their `Created:` line, dated
   sections, and filename date. File modification times are ignored.
-- **Templates** live at `$XDG_CONFIG_HOME/probe/template.md` (default
-  `~/.config/probe/template.md`). Probe fills in `{{ title }}`, `{{ id }}`,
+- **Templates** live at `$XDG_CONFIG_HOME/sond/template.md` (default
+  `~/.config/sond/template.md`). Sond fills in `{{ title }}`, `{{ id }}`,
   `{{ created }}` (`YYYY-MM-DD HH:MM`) and `{{ date }}`; any other `{{ … }}` is
   left untouched. Without a template, this is used:
 
@@ -88,4 +94,4 @@ cargo test
 ```
 
 Tests never touch your real `$HOME`, editor, or clock: each runs in a temporary
-project with a fake editor and a fixed time (`PROBE_NOW="YYYY-MM-DD HH:MM"`).
+project with a fake editor and a fixed time (`SOND_NOW="YYYY-MM-DD HH:MM"`).

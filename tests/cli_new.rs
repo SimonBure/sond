@@ -1,4 +1,4 @@
-//! `probe new <title>` — start a new investigation.
+//! `sond new <title>` — start a new investigation.
 //!
 //! Contract established here:
 //!
@@ -29,13 +29,13 @@ const FILENAME: &str = "R001-2026-09-21-adaptive-timestep-instability.md";
 
 #[test]
 fn no_subcommand_is_an_error() {
-    Project::empty().probe().assert().failure();
+    Project::empty().sond().assert().failure();
 }
 
 #[test]
 fn unknown_subcommand_is_an_error() {
     Project::empty()
-        .probe()
+        .sond()
         .arg("unknown-command")
         .assert()
         .failure();
@@ -44,7 +44,7 @@ fn unknown_subcommand_is_an_error() {
 #[test]
 fn help_lists_new() {
     Project::empty()
-        .probe()
+        .sond()
         .arg("--help")
         .assert()
         .success()
@@ -54,7 +54,7 @@ fn help_lists_new() {
 #[test]
 fn new_has_help() {
     Project::empty()
-        .probe()
+        .sond()
         .args(["new", "--help"])
         .assert()
         .success()
@@ -64,14 +64,14 @@ fn new_has_help() {
 #[test]
 fn new_requires_a_title() {
     let p = Project::empty();
-    p.probe().arg("new").assert().failure();
+    p.sond().arg("new").assert().failure();
     assert!(p.log_names().is_empty());
 }
 
 #[test]
 fn blank_title_is_rejected_without_creating_a_log() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["new", "   "])
         .assert()
         .failure()
@@ -88,21 +88,21 @@ fn blank_title_is_rejected_without_creating_a_log() {
 fn creates_the_logs_directory() {
     let p = Project::empty();
     assert!(!p.logs_dir().exists());
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert!(p.logs_dir().is_dir());
 }
 
 #[test]
 fn creates_exactly_one_markdown_log_with_a_deterministic_name() {
     let p = Project::empty();
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert_eq!(p.log_names(), [FILENAME]);
 }
 
 #[test]
 fn prints_the_path_of_the_new_log() {
     Project::empty()
-        .probe()
+        .sond()
         .args(["new", TITLE])
         .assert()
         .success()
@@ -112,7 +112,7 @@ fn prints_the_path_of_the_new_log() {
 #[test]
 fn default_template_produces_this_document() {
     let p = Project::empty();
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert_eq!(
         p.read_log(FILENAME),
         format!(
@@ -134,7 +134,7 @@ ID: R001
 #[test]
 fn unquoted_words_form_one_title() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["new", "Adaptive", "timestep", "instability"])
         .assert()
         .success();
@@ -147,7 +147,7 @@ fn title_is_kept_verbatim_in_the_document() {
     // The slug is lossy; the heading must not be.
     let p = Project::empty();
     let title = "Précision numérique: why does Δt > 0.01 diverge?";
-    p.probe().args(["new", title]).assert().success();
+    p.sond().args(["new", title]).assert().success();
     let name = &p.log_names()[0];
     assert_eq!(
         name,
@@ -159,8 +159,8 @@ fn title_is_kept_verbatim_in_the_document() {
 #[test]
 fn created_date_comes_from_the_clock() {
     let p = Project::empty();
-    p.probe()
-        .env("PROBE_NOW", "2027-01-02 03:04")
+    p.sond()
+        .env("SOND_NOW", "2027-01-02 03:04")
         .args(["new", "x"])
         .assert()
         .success();
@@ -172,12 +172,12 @@ fn created_date_comes_from_the_clock() {
 #[test]
 fn invalid_clock_override_is_an_error() {
     let p = Project::empty();
-    p.probe()
-        .env("PROBE_NOW", "yesterday")
+    p.sond()
+        .env("SOND_NOW", "yesterday")
         .args(["new", TITLE])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("PROBE_NOW").or(predicate::str::contains("timestamp")));
+        .stderr(predicate::str::contains("SOND_NOW").or(predicate::str::contains("timestamp")));
     assert!(p.log_names().is_empty());
 }
 
@@ -199,7 +199,7 @@ fn slugs_are_filesystem_safe() {
     ];
     for (title, slug) in cases {
         let p = Project::empty();
-        p.probe().args(["new", title]).assert().success();
+        p.sond().args(["new", title]).assert().success();
         assert_eq!(
             p.log_names(),
             [format!("R001-2026-09-21-{slug}.md")],
@@ -215,8 +215,8 @@ fn slugs_are_filesystem_safe() {
 #[test]
 fn consecutive_logs_get_distinct_increasing_ids() {
     let p = Project::empty();
-    p.probe().args(["new", TITLE]).assert().success();
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert_eq!(
         p.log_names(),
         [
@@ -246,7 +246,7 @@ fn next_id_follows_the_highest_existing_one() {
         for name in existing {
             p.add_log(name, "# old\n");
         }
-        p.probe().args(["new", "next"]).assert().success();
+        p.sond().args(["new", "next"]).assert().success();
         let created = format!("{expected}-2026-09-21-next.md");
         assert!(
             p.log_names().contains(&created),
@@ -261,7 +261,7 @@ fn ids_count_renamed_and_widened_logs() {
     let p = Project::empty();
     p.add_log("R007-my-renamed-notes.md", "");
     p.add_log("R1000-2026-01-01-wide.md", "");
-    p.probe().args(["new", "next"]).assert().success();
+    p.sond().args(["new", "next"]).assert().success();
     assert!(
         p.log_names()
             .contains(&"R1001-2026-09-21-next.md".to_string())
@@ -275,7 +275,7 @@ fn files_that_are_not_logs_are_ignored() {
     p.add_log("R999.txt", "");
     p.add_log("notes-R050.md", "");
     fs::create_dir(p.logs_dir().join("figures")).unwrap();
-    p.probe().args(["new", "first"]).assert().success();
+    p.sond().args(["new", "first"]).assert().success();
     assert!(
         p.log_names()
             .contains(&"R001-2026-09-21-first.md".to_string())
@@ -290,7 +290,7 @@ fn existing_logs_are_left_byte_for_byte_untouched() {
         "R003-2026-09-20-adaptive-timestep.md",
     ];
     let p = Project::with_fixture_logs(&names);
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
 
     for name in names {
         let original = fs::read(fixture(&format!("logs/{name}"))).unwrap();
@@ -315,7 +315,7 @@ fn existing_logs_are_left_byte_for_byte_untouched() {
 fn configured_template_is_applied() {
     let p = Project::empty();
     p.set_template(&fs::read_to_string(fixture("templates/custom.md")).unwrap());
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert_eq!(
         p.read_log(FILENAME),
         format!(
@@ -340,7 +340,7 @@ Reviewer: {{{{ reviewer }}}}
 fn minimal_template_is_applied() {
     let p = Project::empty();
     p.set_template(&fs::read_to_string(fixture("templates/minimal.md")).unwrap());
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert_eq!(
         p.read_log(FILENAME),
         format!("# {TITLE}\n\nCreated: {NOW}\nID: R001\n\n## Notes\n")
@@ -350,11 +350,11 @@ fn minimal_template_is_applied() {
 #[test]
 fn template_falls_back_to_home_dot_config() {
     let p = Project::empty();
-    let dir = p.home.join(".config/probe");
+    let dir = p.home.join(".config/sond");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("template.md"), "from home: {{ id }}\n").unwrap();
 
-    p.probe()
+    p.sond()
         .env_remove("XDG_CONFIG_HOME")
         .args(["new", TITLE])
         .assert()
@@ -366,8 +366,8 @@ fn template_falls_back_to_home_dot_config() {
 fn unreadable_template_is_an_error_and_creates_nothing() {
     let p = Project::empty();
     // A directory where the template file should be.
-    fs::create_dir_all(p.config.join("probe/template.md")).unwrap();
-    p.probe()
+    fs::create_dir_all(p.config.join("sond/template.md")).unwrap();
+    p.sond()
         .args(["new", TITLE])
         .assert()
         .failure()
@@ -383,14 +383,14 @@ fn unreadable_template_is_an_error_and_creates_nothing() {
 #[test]
 fn opens_the_new_log_in_the_editor_once() {
     let p = Project::empty();
-    p.probe().args(["new", TITLE]).assert().success();
+    p.sond().args(["new", TITLE]).assert().success();
     assert_eq!(p.editor_invocations(), [[format!("logs/{FILENAME}")]]);
 }
 
 #[test]
 fn what_the_user_types_in_the_editor_lands_in_the_log() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env(
             "FAKE_EDITOR_APPEND",
             "First observation: dt > 0.01 blows up.",
@@ -408,7 +408,7 @@ fn what_the_user_types_in_the_editor_lands_in_the_log() {
 fn editor_flags_are_passed_through() {
     // Stands in for `EDITOR="code --wait"`.
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env(
             "EDITOR",
             format!("{} --wait", sh_editor("editor/fake-editor.sh")),
@@ -425,7 +425,7 @@ fn editor_flags_are_passed_through() {
 #[test]
 fn visual_takes_precedence_over_editor() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env("VISUAL", sh_editor("editor/fake-editor.sh"))
         .env("EDITOR", sh_editor("editor/failing-editor.sh"))
         .args(["new", TITLE])
@@ -437,7 +437,7 @@ fn visual_takes_precedence_over_editor() {
 #[test]
 fn blank_visual_falls_back_to_editor() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env("VISUAL", "  ")
         .args(["new", TITLE])
         .assert()
@@ -448,7 +448,7 @@ fn blank_visual_falls_back_to_editor() {
 #[test]
 fn failing_editor_is_an_error_but_the_log_is_kept() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env("EDITOR", sh_editor("editor/failing-editor.sh"))
         .args(["new", TITLE])
         .assert()
@@ -461,7 +461,7 @@ fn failing_editor_is_an_error_but_the_log_is_kept() {
 #[test]
 fn missing_editor_is_an_error_but_the_log_is_kept() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env("EDITOR", "/nonexistent/editor")
         .args(["new", TITLE])
         .assert()
@@ -481,7 +481,7 @@ fn missing_editor_is_an_error_but_the_log_is_kept() {
 fn logs_path_that_is_a_file_is_an_error_not_a_panic() {
     let p = Project::empty();
     fs::write(p.logs_dir(), "not a directory").unwrap();
-    p.probe()
+    p.sond()
         .args(["new", TITLE])
         .assert()
         .failure()
@@ -494,7 +494,7 @@ fn logs_path_that_is_a_file_is_an_error_not_a_panic() {
 fn works_outside_a_git_repository() {
     let p = Project::empty();
     assert!(!p.dir.join(".git").exists());
-    p.probe()
+    p.sond()
         .env("GIT_DIR", "/nonexistent")
         .args(["new", TITLE])
         .assert()

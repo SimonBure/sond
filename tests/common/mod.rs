@@ -1,7 +1,7 @@
-//! A throwaway Probe project for CLI integration tests.
+//! A throwaway Sond project for CLI integration tests.
 //!
 //! Every command runs with a cleared environment: its own `$HOME`, its own
-//! `$XDG_CONFIG_HOME`, a fixed clock (`PROBE_NOW`), and a fake editor that
+//! `$XDG_CONFIG_HOME`, a fixed clock (`SOND_NOW`), and a fake editor that
 //! records how it was called instead of opening a window. Nothing a test does
 //! can see or touch the real user's config, editor, clock, or Git repository.
 //!
@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use assert_cmd::Command;
 use tempfile::TempDir;
 
-/// The fixed "now" every command sees unless a test overrides `PROBE_NOW`.
+/// The fixed "now" every command sees unless a test overrides `SOND_NOW`.
 pub const NOW: &str = "2026-09-21 12:19";
 
 pub fn fixture(rel: &str) -> PathBuf {
@@ -83,20 +83,20 @@ impl Project {
         fs::write(self.logs_dir().join(name), content).unwrap();
     }
 
-    /// Where Probe keeps the user's template in this project's environment.
+    /// Where Sond keeps the user's template in this project's environment.
     pub fn template_file(&self) -> PathBuf {
-        self.config.join("probe/template.md")
+        self.config.join("sond/template.md")
     }
 
     /// Installs `content` as the user's template.
     pub fn set_template(&self, content: &str) {
-        fs::create_dir_all(self.config.join("probe")).unwrap();
+        fs::create_dir_all(self.config.join("sond")).unwrap();
         fs::write(self.template_file(), content).unwrap();
     }
 
     /// Names of the entries in the template's directory, sorted.
     pub fn config_names(&self) -> Vec<String> {
-        let Ok(entries) = fs::read_dir(self.config.join("probe")) else {
+        let Ok(entries) = fs::read_dir(self.config.join("sond")) else {
             return Vec::new();
         };
         let mut names: Vec<String> = entries
@@ -106,15 +106,15 @@ impl Project {
         names
     }
 
-    /// `probe` with a hermetic environment, run from the project directory.
-    pub fn probe(&self) -> Command {
-        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("probe");
+    /// `sond` with a hermetic environment, run from the project directory.
+    pub fn sond(&self) -> Command {
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("sond");
         cmd.current_dir(&self.dir)
             .env_clear()
             .env("PATH", std::env::var_os("PATH").unwrap_or_default())
             .env("HOME", &self.home)
             .env("XDG_CONFIG_HOME", &self.config)
-            .env("PROBE_NOW", NOW)
+            .env("SOND_NOW", NOW)
             .env("EDITOR", sh_editor("editor/fake-editor.sh"))
             .env("FAKE_EDITOR_LOG", &self.editor_log);
         cmd

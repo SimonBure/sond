@@ -1,6 +1,6 @@
-//! Log templates: where they live and how Probe fills them in.
+//! Log templates: where they live and how Sond fills them in.
 //!
-//! This is deliberately not a template language. Probe substitutes the few
+//! This is deliberately not a template language. Sond substitutes the few
 //! variables it owns and leaves everything else in the file exactly as written.
 
 use std::ffi::OsString;
@@ -71,8 +71,8 @@ pub fn render_template(template: &str, vars: &TemplateVars) -> String {
     out
 }
 
-/// Where the user's template lives: `$XDG_CONFIG_HOME/probe/template.md`,
-/// falling back to `~/.config/probe/template.md`.
+/// Where the user's template lives: `$XDG_CONFIG_HOME/sond/template.md`,
+/// falling back to `~/.config/sond/template.md`.
 pub fn template_path() -> Option<PathBuf> {
     template_path_from(
         std::env::var_os("XDG_CONFIG_HOME"),
@@ -93,7 +93,7 @@ pub fn template_path_from(
             home.filter(|h| !h.is_empty())
                 .map(|h| PathBuf::from(h).join(".config"))
         })?;
-    Some(config.join("probe").join("template.md"))
+    Some(config.join("sond").join("template.md"))
 }
 
 /// Reads the template at `path`, or returns the default when there is none.

@@ -19,13 +19,13 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use probe::clock::parse_timestamp;
-use probe::editor::{choose_editor, editor_command};
-use probe::log::{
+use sond::clock::parse_timestamp;
+use sond::editor::{choose_editor, editor_command};
+use sond::log::{
     format_id, last_activity, log_filename, log_title, matching_lines, parse_id,
     parse_log_filename, slugify, trailing_empty_section_line,
 };
-use probe::template::{DEFAULT_TEMPLATE, TemplateVars, render_template, template_path_from};
+use sond::template::{DEFAULT_TEMPLATE, TemplateVars, render_template, template_path_from};
 
 // ---------------------------------------------------------------------------
 // slugify
@@ -130,7 +130,7 @@ fn format_id_pads_to_three_digits_then_widens() {
 
 #[test]
 fn parse_id_is_tolerant_of_what_a_human_types() {
-    // `probe poke` should accept every reasonable spelling of the same log.
+    // `sond poke` should accept every reasonable spelling of the same log.
     assert_eq!(parse_id("R042"), Some(42));
     assert_eq!(parse_id("R42"), Some(42));
     assert_eq!(parse_id("r042"), Some(42));
@@ -267,7 +267,7 @@ fn render_replaces_every_occurrence() {
 
 #[test]
 fn render_leaves_unknown_placeholders_untouched() {
-    // The template is the user's file, not a schema we validate. Probe
+    // The template is the user's file, not a schema we validate. Sond
     // substitutes only what it owns and never errors on the rest — that is
     // what lets a researcher use any template structure they like.
     assert_eq!(
@@ -421,7 +421,7 @@ fn os(s: &str) -> Option<OsString> {
 fn template_lives_under_xdg_config_home() {
     assert_eq!(
         template_path_from(os("/xdg"), os("/home/me")),
-        Some(PathBuf::from("/xdg/probe/template.md"))
+        Some(PathBuf::from("/xdg/sond/template.md"))
     );
 }
 
@@ -429,14 +429,14 @@ fn template_lives_under_xdg_config_home() {
 fn template_falls_back_to_dot_config() {
     assert_eq!(
         template_path_from(None, os("/home/me")),
-        Some(PathBuf::from("/home/me/.config/probe/template.md"))
+        Some(PathBuf::from("/home/me/.config/sond/template.md"))
     );
 }
 
 #[test]
 fn empty_or_relative_xdg_config_home_is_ignored() {
     // Per the XDG Base Directory spec.
-    let expected = Some(PathBuf::from("/home/me/.config/probe/template.md"));
+    let expected = Some(PathBuf::from("/home/me/.config/sond/template.md"));
     assert_eq!(template_path_from(os(""), os("/home/me")), expected);
     assert_eq!(template_path_from(os("rel/dir"), os("/home/me")), expected);
 }

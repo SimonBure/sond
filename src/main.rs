@@ -6,9 +6,9 @@ use std::process::ExitCode;
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
-use probe::{clock, editor, log, template};
+use sond::{clock, editor, log, template};
 
-/// Logs live in `./logs`, relative to wherever Probe is run.
+/// Logs live in `./logs`, relative to wherever Sond is run.
 const LOGS_DIR: &str = "logs";
 
 /// Append-only research logs, stored as Markdown next to your code.
@@ -131,7 +131,7 @@ fn search(query: &str) -> Result<ExitCode> {
 fn recent(limit: usize) -> Result<()> {
     let logs = log::recent_logs(Path::new(LOGS_DIR))?;
     if logs.is_empty() {
-        eprintln!("no logs yet; start one with `probe new <title>`");
+        eprintln!("no logs yet; start one with `sond new <title>`");
         return Ok(());
     }
 
@@ -157,7 +157,7 @@ fn recent(limit: usize) -> Result<()> {
 }
 
 /// Writes `text` to stdout. A reader that stops early, as in
-/// `probe recent | head`, is not an error.
+/// `sond recent | head`, is not an error.
 fn print(text: &str) -> Result<()> {
     match io::stdout().lock().write_all(text.as_bytes()) {
         Err(e) if e.kind() == ErrorKind::BrokenPipe => Ok(()),

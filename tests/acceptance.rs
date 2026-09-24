@@ -13,23 +13,23 @@ fn a_research_week_in_one_investigation() {
     let p = Project::empty();
 
     // 1–2. An empty project; configure a custom template.
-    p.probe()
+    p.sond()
         .args(["template", "set"])
         .arg(fixture("templates/minimal.md"))
         .assert()
         .success();
 
     // 3–4. Start an investigation and write initial observations.
-    p.probe()
-        .env("PROBE_NOW", "2026-09-21 12:19")
+    p.sond()
+        .env("SOND_NOW", "2026-09-21 12:19")
         .env("FAKE_EDITOR_APPEND", "Unstable once dt > 0.01.")
         .args(["new", "Adaptive timestep instability"])
         .assert()
         .success();
 
     // 5–6. A day later, continue it.
-    p.probe()
-        .env("PROBE_NOW", "2026-09-22 09:40")
+    p.sond()
+        .env("SOND_NOW", "2026-09-22 09:40")
         .env(
             "FAKE_EDITOR_APPEND",
             "The CFL number exceeds 1 exactly there.",
@@ -39,7 +39,7 @@ fn a_research_week_in_one_investigation() {
         .success();
 
     // 7. Find it again by a concept.
-    p.probe()
+    p.sond()
         .args(["search", "cfl number"])
         .assert()
         .success()
@@ -49,7 +49,7 @@ fn a_research_week_in_one_investigation() {
         );
 
     // 8. See it in recent activity.
-    p.probe()
+    p.sond()
         .arg("recent")
         .assert()
         .success()

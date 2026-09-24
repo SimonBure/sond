@@ -1,9 +1,9 @@
-//! `probe template set <file>` and `probe template edit`.
+//! `sond template set <file>` and `sond template edit`.
 //!
 //! Contract established here:
 //!
-//! - the template lives at `$XDG_CONFIG_HOME/probe/template.md`, falling back
-//!   to `~/.config/probe/template.md`; directories are created on demand
+//! - the template lives at `$XDG_CONFIG_HOME/sond/template.md`, falling back
+//!   to `~/.config/sond/template.md`; directories are created on demand
 //! - `set` stores a *copy* of the file; later edits to the source do not leak
 //! - `set` replaces the template atomically: on any failure the previous
 //!   template is untouched and no temporary file is left behind
@@ -22,7 +22,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use common::{Project, fixture, sh_editor};
 use predicates::prelude::*;
-use probe::template::DEFAULT_TEMPLATE;
+use sond::template::DEFAULT_TEMPLATE;
 
 const PREVIOUS: &str = "# previous template {{ title }}\n";
 
@@ -42,11 +42,11 @@ fn assert_template(p: &Project, content: &str) {
 
 /// True when this process ignores file permissions (running as root).
 fn permissions_ignored(p: &Project) -> bool {
-    let probe = p.home.join("perm-probe");
-    fs::write(&probe, "").unwrap();
-    fs::set_permissions(&probe, fs::Permissions::from_mode(0o000)).unwrap();
-    let ignored = fs::read(&probe).is_ok();
-    fs::remove_file(&probe).unwrap();
+    let canary = p.home.join("perm-canary");
+    fs::write(&canary, "").unwrap();
+    fs::set_permissions(&canary, fs::Permissions::from_mode(0o000)).unwrap();
+    let ignored = fs::read(&canary).is_ok();
+    fs::remove_file(&canary).unwrap();
     ignored
 }
 
@@ -57,7 +57,7 @@ fn permissions_ignored(p: &Project) -> bool {
 #[test]
 fn help_lists_template() {
     Project::empty()
-        .probe()
+        .sond()
         .arg("--help")
         .assert()
         .success()
@@ -67,7 +67,7 @@ fn help_lists_template() {
 #[test]
 fn template_help_lists_set_and_edit() {
     Project::empty()
-        .probe()
+        .sond()
         .args(["template", "--help"])
         .assert()
         .success()
@@ -76,13 +76,13 @@ fn template_help_lists_set_and_edit() {
 
 #[test]
 fn template_requires_a_subcommand() {
-    Project::empty().probe().arg("template").assert().failure();
+    Project::empty().sond().arg("template").assert().failure();
 }
 
 #[test]
 fn unknown_template_subcommand_is_an_error() {
     Project::empty()
-        .probe()
+        .sond()
         .args(["template", "show"])
         .assert()
         .failure();
@@ -91,7 +91,7 @@ fn unknown_template_subcommand_is_an_error() {
 #[test]
 fn set_requires_a_file() {
     let p = Project::empty();
-    p.probe().args(["template", "set"]).assert().failure();
+    p.sond().args(["template", "set"]).assert().failure();
     assert!(!p.template_file().exists());
 }
 
@@ -102,7 +102,7 @@ fn set_requires_a_file() {
 #[test]
 fn set_installs_a_copy_and_prints_where() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["template", "set"])
         .arg(fixture("templates/custom.md"))
         .assert()
@@ -115,7 +115,7 @@ fn set_installs_a_copy_and_prints_where() {
 fn set_accepts_a_path_relative_to_the_working_directory() {
     let p = Project::empty();
     fs::write(p.dir.join("mine.md"), "# mine: {{ title }}\n").unwrap();
-    p.probe()
+    p.sond()
         .args(["template", "set", "mine.md"])
         .assert()
         .success();
@@ -126,7 +126,7 @@ fn set_accepts_a_path_relative_to_the_working_directory() {
 fn set_replaces_the_previous_template() {
     let p = Project::empty();
     p.set_template(PREVIOUS);
-    p.probe()
+    p.sond()
         .args(["template", "set"])
         .arg(fixture("templates/custom.md"))
         .assert()
@@ -139,7 +139,7 @@ fn later_edits_to_the_source_do_not_leak_into_the_template() {
     let p = Project::empty();
     let source = p.dir.join("mine.md");
     fs::write(&source, "v1\n").unwrap();
-    p.probe()
+    p.sond()
         .args(["template", "set", "mine.md"])
         .assert()
         .success();
@@ -149,11 +149,11 @@ fn later_edits_to_the_source_do_not_leak_into_the_template() {
 
 #[test]
 fn set_keeps_unknown_placeholders_and_odd_content_verbatim() {
-    // Probe does not validate templates; an empty one is a valid choice too.
+    // Sond does not validate templates; an empty one is a valid choice too.
     for content in ["{{ status }} {{ title }}\n", "", "no placeholders at all"] {
         let p = Project::empty();
         fs::write(p.dir.join("t.md"), content).unwrap();
-        p.probe()
+        p.sond()
             .args(["template", "set", "t.md"])
             .assert()
             .success();
@@ -163,10 +163,10 @@ fn set_keeps_unknown_placeholders_and_odd_content_verbatim() {
 
 #[test]
 fn setting_the_template_to_itself_is_harmless() {
-    // The README example `probe template set ~/.config/probe/template.md`.
+    // The README example `sond template set ~/.config/sond/template.md`.
     let p = Project::empty();
     p.set_template(PREVIOUS);
-    p.probe()
+    p.sond()
         .args(["template", "set"])
         .arg(p.template_file())
         .assert()
@@ -177,14 +177,14 @@ fn setting_the_template_to_itself_is_harmless() {
 #[test]
 fn set_falls_back_to_home_dot_config() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env_remove("XDG_CONFIG_HOME")
         .args(["template", "set"])
         .arg(fixture("templates/minimal.md"))
         .assert()
         .success();
     assert_eq!(
-        fs::read(p.home.join(".config/probe/template.md")).unwrap(),
+        fs::read(p.home.join(".config/sond/template.md")).unwrap(),
         fs::read(fixture("templates/minimal.md")).unwrap()
     );
     assert!(!p.template_file().exists());
@@ -193,7 +193,7 @@ fn set_falls_back_to_home_dot_config() {
 #[test]
 fn set_touches_neither_logs_nor_the_editor() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["template", "set"])
         .arg(fixture("templates/custom.md"))
         .assert()
@@ -208,7 +208,7 @@ fn set_touches_neither_logs_nor_the_editor() {
 fn missing_source_is_an_error() {
     let p = Project::empty();
     p.set_template(PREVIOUS);
-    p.probe()
+    p.sond()
         .args(["template", "set", "does-not-exist.md"])
         .assert()
         .failure()
@@ -219,7 +219,7 @@ fn missing_source_is_an_error() {
 #[test]
 fn missing_source_does_not_create_a_template() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["template", "set", "does-not-exist.md"])
         .assert()
         .failure();
@@ -231,7 +231,7 @@ fn directory_source_is_an_error() {
     let p = Project::empty();
     p.set_template(PREVIOUS);
     fs::create_dir(p.dir.join("a-dir")).unwrap();
-    p.probe()
+    p.sond()
         .args(["template", "set", "a-dir"])
         .assert()
         .failure()
@@ -250,7 +250,7 @@ fn unreadable_source_is_an_error() {
     fs::write(&source, "# secret\n").unwrap();
     fs::set_permissions(&source, fs::Permissions::from_mode(0o000)).unwrap();
 
-    p.probe()
+    p.sond()
         .args(["template", "set", "secret.md"])
         .assert()
         .failure()
@@ -266,7 +266,7 @@ fn non_utf8_source_is_an_error() {
     let p = Project::empty();
     p.set_template(PREVIOUS);
     fs::write(p.dir.join("latin1.md"), b"# \xe9t\xe9 {{ title }}\n").unwrap();
-    p.probe()
+    p.sond()
         .args(["template", "set", "latin1.md"])
         .assert()
         .failure()
@@ -281,11 +281,11 @@ fn unwritable_config_is_an_error_and_leaves_no_debris() {
         return;
     }
     p.set_template(PREVIOUS);
-    let dir = p.config.join("probe");
+    let dir = p.config.join("sond");
     fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
 
     let assert = p
-        .probe()
+        .sond()
         .args(["template", "set"])
         .arg(fixture("templates/custom.md"))
         .assert();
@@ -300,7 +300,7 @@ fn unwritable_config_is_an_error_and_leaves_no_debris() {
 #[test]
 fn no_config_location_is_an_error() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("HOME")
         .args(["template", "set"])
@@ -317,7 +317,7 @@ fn no_config_location_is_an_error() {
 #[test]
 fn edit_creates_the_default_template_when_there_is_none() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["template", "edit"])
         .assert()
         .success()
@@ -328,7 +328,7 @@ fn edit_creates_the_default_template_when_there_is_none() {
 #[test]
 fn edit_opens_the_template_in_the_editor() {
     let p = Project::empty();
-    p.probe().args(["template", "edit"]).assert().success();
+    p.sond().args(["template", "edit"]).assert().success();
     assert_eq!(
         p.editor_invocations(),
         [[p.template_file().display().to_string()]]
@@ -339,7 +339,7 @@ fn edit_opens_the_template_in_the_editor() {
 fn edit_never_overwrites_an_existing_template() {
     let p = Project::empty();
     p.set_template(PREVIOUS);
-    p.probe().args(["template", "edit"]).assert().success();
+    p.sond().args(["template", "edit"]).assert().success();
     assert_template(&p, PREVIOUS);
     assert_eq!(p.editor_invocations().len(), 1);
 }
@@ -347,15 +347,12 @@ fn edit_never_overwrites_an_existing_template() {
 #[test]
 fn edits_made_in_the_editor_shape_the_next_log() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env("FAKE_EDITOR_APPEND", "## Hypothesis ({{ date }})")
         .args(["template", "edit"])
         .assert()
         .success();
-    p.probe()
-        .args(["new", "Mesh refinement"])
-        .assert()
-        .success();
+    p.sond().args(["new", "Mesh refinement"]).assert().success();
 
     let log = p.read_log("R001-2026-09-21-mesh-refinement.md");
     assert!(log.starts_with("# Mesh refinement\n"), "{log}");
@@ -368,8 +365,8 @@ fn edits_made_in_the_editor_shape_the_next_log() {
 #[test]
 fn edit_falls_back_to_home_dot_config() {
     let p = Project::empty();
-    let expected = p.home.join(".config/probe/template.md");
-    p.probe()
+    let expected = p.home.join(".config/sond/template.md");
+    p.sond()
         .env_remove("XDG_CONFIG_HOME")
         .args(["template", "edit"])
         .assert()
@@ -381,14 +378,14 @@ fn edit_falls_back_to_home_dot_config() {
 #[test]
 fn edit_does_not_touch_logs() {
     let p = Project::empty();
-    p.probe().args(["template", "edit"]).assert().success();
+    p.sond().args(["template", "edit"]).assert().success();
     assert!(!p.logs_dir().exists());
 }
 
 #[test]
 fn failing_editor_is_an_error_but_the_template_is_kept() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env("EDITOR", sh_editor("editor/failing-editor.sh"))
         .args(["template", "edit"])
         .assert()
@@ -401,7 +398,7 @@ fn failing_editor_is_an_error_but_the_template_is_kept() {
 fn template_path_that_is_a_directory_is_an_error() {
     let p = Project::empty();
     fs::create_dir_all(p.template_file()).unwrap();
-    p.probe()
+    p.sond()
         .args(["template", "edit"])
         .assert()
         .failure()
@@ -414,7 +411,7 @@ fn template_path_that_is_a_directory_is_an_error() {
 #[test]
 fn edit_without_a_config_location_is_an_error() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .env_remove("XDG_CONFIG_HOME")
         .env_remove("HOME")
         .args(["template", "edit"])
@@ -431,17 +428,17 @@ fn edit_without_a_config_location_is_an_error() {
 #[test]
 fn set_then_edit_then_new() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .args(["template", "set"])
         .arg(fixture("templates/minimal.md"))
         .assert()
         .success();
-    p.probe()
+    p.sond()
         .env("FAKE_EDITOR_APPEND", "## Sources")
         .args(["template", "edit"])
         .assert()
         .success();
-    p.probe().args(["new", "CFL"]).assert().success();
+    p.sond().args(["new", "CFL"]).assert().success();
 
     assert_eq!(
         p.read_log("R001-2026-09-21-cfl.md"),

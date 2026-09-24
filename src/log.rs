@@ -92,7 +92,7 @@ pub fn log_filename(id: u32, date: &str, slug: &str) -> String {
     format!("{}-{date}-{slug}.md", format_id(id))
 }
 
-/// What Probe can read back out of a log's filename.
+/// What Sond can read back out of a log's filename.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogFile {
     pub id: u32,
@@ -161,7 +161,7 @@ pub fn log_title(content: &str) -> Option<&str> {
         .filter(|t| !t.is_empty())
 }
 
-/// When the log was last worked on, according to what Probe wrote into it:
+/// When the log was last worked on, according to what Sond wrote into it:
 /// the latest of its `Created:` line, its dated sections, and `file_date` (the
 /// date from its filename, at midnight). Unparseable timestamps are skipped.
 pub fn last_activity(content: &str, file_date: Option<&str>) -> Option<DateTime> {

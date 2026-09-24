@@ -1,4 +1,4 @@
-//! `probe recent` — what have I been working on lately?
+//! `sond recent` — what have I been working on lately?
 //!
 //! Contract established here:
 //!
@@ -40,7 +40,7 @@ fn project() -> Project {
 }
 
 fn recent(p: &Project) -> String {
-    let out = p.probe().arg("recent").assert().success();
+    let out = p.sond().arg("recent").assert().success();
     String::from_utf8(out.get_output().stdout.clone()).unwrap()
 }
 
@@ -51,7 +51,7 @@ fn recent(p: &Project) -> String {
 #[test]
 fn help_lists_recent() {
     Project::empty()
-        .probe()
+        .sond()
         .arg("--help")
         .assert()
         .success()
@@ -61,7 +61,7 @@ fn help_lists_recent() {
 #[test]
 fn recent_help_documents_the_limit() {
     Project::empty()
-        .probe()
+        .sond()
         .args(["recent", "--help"])
         .assert()
         .success()
@@ -72,20 +72,13 @@ fn recent_help_documents_the_limit() {
 fn limit_must_be_a_positive_number() {
     let p = project();
     for bad in ["0", "-1", "ten"] {
-        p.probe()
-            .args(["recent", "--limit", bad])
-            .assert()
-            .failure();
+        p.sond().args(["recent", "--limit", bad]).assert().failure();
     }
 }
 
 #[test]
 fn recent_takes_no_positional_arguments() {
-    project()
-        .probe()
-        .args(["recent", "R001"])
-        .assert()
-        .failure();
+    project().sond().args(["recent", "R001"]).assert().failure();
 }
 
 // ---------------------------------------------------------------------------
@@ -95,12 +88,12 @@ fn recent_takes_no_positional_arguments() {
 #[test]
 fn no_logs_directory_is_a_clean_empty_state() {
     let p = Project::empty();
-    p.probe()
+    p.sond()
         .arg("recent")
         .assert()
         .success()
         .stdout("")
-        .stderr(predicate::str::contains("probe new"));
+        .stderr(predicate::str::contains("sond new"));
     assert!(!p.logs_dir().exists(), "recent must not create logs/");
 }
 
@@ -109,7 +102,7 @@ fn empty_logs_directory_is_a_clean_empty_state() {
     let p = Project::empty();
     fs::create_dir(p.logs_dir()).unwrap();
     p.add_log("README.md", "not a log\n");
-    p.probe().arg("recent").assert().success().stdout("");
+    p.sond().arg("recent").assert().success().stdout("");
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +123,7 @@ fn output_is_deterministic() {
 #[test]
 fn a_poke_brings_an_old_investigation_to_the_top() {
     let p = project();
-    p.probe().args(["poke", "R001"]).assert().success();
+    p.sond().args(["poke", "R001"]).assert().success();
     assert_eq!(
         recent(&p),
         "\
@@ -144,7 +137,7 @@ R002  2026-09-19 14:05  Fourier features for the surrogate model
 #[test]
 fn filesystem_mtime_is_ignored() {
     // Touching the oldest log (an editor save, a `git checkout`) must not
-    // reorder anything: only what Probe wrote into the file counts.
+    // reorder anything: only what Sond wrote into the file counts.
     let p = project();
     let file = File::options()
         .append(true)
@@ -198,7 +191,7 @@ R999   2026-09-01 00:00  Old
 fn custom_templates_without_created_fall_back_to_the_filename_date() {
     let p = Project::empty();
     p.set_template(&fs::read_to_string(fixture("templates/custom.md")).unwrap());
-    p.probe().args(["new", "CFL"]).assert().success();
+    p.sond().args(["new", "CFL"]).assert().success();
     assert_eq!(recent(&p), "R001  2026-09-21 00:00  Investigation: CFL\n");
 }
 
@@ -262,7 +255,7 @@ fn shows_ten_by_default() {
 fn limit_shows_the_n_newest() {
     for flag in ["-n", "--limit"] {
         twelve_logs()
-            .probe()
+            .sond()
             .args(["recent", flag, "2"])
             .assert()
             .success()
@@ -273,7 +266,7 @@ fn limit_shows_the_n_newest() {
 #[test]
 fn limit_larger_than_the_log_count_shows_everything() {
     project()
-        .probe()
+        .sond()
         .args(["recent", "-n", "100"])
         .assert()
         .success()
@@ -302,8 +295,8 @@ fn changes_nothing_and_opens_nothing() {
 fn does_not_depend_on_the_clock() {
     let p = project();
     for now in ["2020-01-01 00:00", "not even a time"] {
-        p.probe()
-            .env("PROBE_NOW", now)
+        p.sond()
+            .env("SOND_NOW", now)
             .arg("recent")
             .assert()
             .success()
@@ -315,7 +308,7 @@ fn does_not_depend_on_the_clock() {
 fn logs_path_that_is_a_file_is_an_error() {
     let p = Project::empty();
     fs::write(p.logs_dir(), "oops").unwrap();
-    p.probe()
+    p.sond()
         .arg("recent")
         .assert()
         .failure()
@@ -329,18 +322,18 @@ fn logs_path_that_is_a_file_is_an_error() {
 #[test]
 fn new_new_poke_recent() {
     let p = Project::empty();
-    p.probe()
-        .env("PROBE_NOW", "2026-09-18 09:00")
+    p.sond()
+        .env("SOND_NOW", "2026-09-18 09:00")
         .args(["new", "Boundary leak"])
         .assert()
         .success();
-    p.probe()
-        .env("PROBE_NOW", "2026-09-19 09:00")
+    p.sond()
+        .env("SOND_NOW", "2026-09-19 09:00")
         .args(["new", "Fourier features"])
         .assert()
         .success();
-    p.probe()
-        .env("PROBE_NOW", "2026-09-20 17:45")
+    p.sond()
+        .env("SOND_NOW", "2026-09-20 17:45")
         .args(["poke", "R001"])
         .assert()
         .success();

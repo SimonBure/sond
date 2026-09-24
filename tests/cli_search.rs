@@ -1,4 +1,4 @@
-//! `probe search <query>` — find past investigations.
+//! `sond search <query>` — find past investigations.
 //!
 //! Contract established here:
 //!
@@ -33,7 +33,7 @@ fn project() -> Project {
 }
 
 fn search(p: &Project, query: &[&str]) -> String {
-    let out = p.probe().arg("search").args(query).assert().success();
+    let out = p.sond().arg("search").args(query).assert().success();
     String::from_utf8(out.get_output().stdout.clone()).unwrap()
 }
 
@@ -44,7 +44,7 @@ fn search(p: &Project, query: &[&str]) -> String {
 #[test]
 fn help_lists_search() {
     Project::empty()
-        .probe()
+        .sond()
         .arg("--help")
         .assert()
         .success()
@@ -54,7 +54,7 @@ fn help_lists_search() {
 #[test]
 fn search_has_help() {
     Project::empty()
-        .probe()
+        .sond()
         .args(["search", "--help"])
         .assert()
         .success()
@@ -63,13 +63,13 @@ fn search_has_help() {
 
 #[test]
 fn search_requires_a_query() {
-    project().probe().arg("search").assert().failure();
+    project().sond().arg("search").assert().failure();
 }
 
 #[test]
 fn blank_query_is_rejected() {
     project()
-        .probe()
+        .sond()
         .args(["search", "  "])
         .assert()
         .failure()
@@ -136,7 +136,7 @@ R001  Boundary condition leaks energy
 #[test]
 fn a_poke_moves_a_log_up_the_results() {
     let p = project();
-    p.probe().args(["poke", "R001"]).assert().success();
+    p.sond().args(["poke", "R001"]).assert().success();
     let out = search(&p, &["## Investigation"]);
     assert!(out.starts_with("R001  "), "{out}");
 }
@@ -148,7 +148,7 @@ fn unquoted_words_are_one_phrase() {
         search(&p, &["CFL", "condition"]),
         search(&p, &["CFL condition"])
     );
-    p.probe()
+    p.sond()
         .args(["search", "condition", "CFL"])
         .assert()
         .code(1);
@@ -172,14 +172,14 @@ fn queries_are_literal() {
         "[1]",
         "\\nabla",
     ] {
-        p.probe()
+        p.sond()
             .args(["search", q])
             .assert()
             .success()
             .stdout(predicate::str::contains("R001  Symbols"));
     }
     for q in ["u.*0", "a.c", "[0-9]"] {
-        p.probe().args(["search", q]).assert().code(1);
+        p.sond().args(["search", q]).assert().code(1);
     }
 }
 
@@ -204,7 +204,7 @@ fn only_logs_are_searched() {
 #[test]
 fn text_added_after_a_poke_is_found() {
     let p = project();
-    p.probe()
+    p.sond()
         .env("FAKE_EDITOR_APPEND", "Ghost cells are updated too late.")
         .args(["poke", "R001"])
         .assert()
@@ -237,7 +237,7 @@ fn non_utf8_logs_are_still_searched() {
 #[test]
 fn no_match_exits_1_with_empty_stdout() {
     project()
-        .probe()
+        .sond()
         .args(["search", "navier-stokes"])
         .assert()
         .code(1)
@@ -248,11 +248,7 @@ fn no_match_exits_1_with_empty_stdout() {
 #[test]
 fn no_logs_directory_is_no_match_and_is_not_created() {
     let p = Project::empty();
-    p.probe()
-        .args(["search", "CFL"])
-        .assert()
-        .code(1)
-        .stdout("");
+    p.sond().args(["search", "CFL"]).assert().code(1).stdout("");
     assert!(!p.logs_dir().exists());
 }
 
@@ -263,8 +259,8 @@ fn no_logs_directory_is_no_match_and_is_not_created() {
 #[test]
 fn changes_nothing_opens_nothing_and_ignores_the_clock() {
     let p = project();
-    p.probe()
-        .env("PROBE_NOW", "not a time")
+    p.sond()
+        .env("SOND_NOW", "not a time")
         .args(["search", "CFL"])
         .assert()
         .success();
@@ -282,7 +278,7 @@ fn changes_nothing_opens_nothing_and_ignores_the_clock() {
 fn logs_path_that_is_a_file_is_an_error() {
     let p = Project::empty();
     fs::write(p.logs_dir(), "CFL").unwrap();
-    p.probe()
+    p.sond()
         .args(["search", "CFL"])
         .assert()
         .failure()
