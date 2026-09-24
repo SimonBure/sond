@@ -2,6 +2,7 @@
 name = "sond"
 version = "0.1.0"
 edition = "2024"
+repository = "https://github.com/SimonBure/sond"
 
 [dependencies]
 anyhow = "1.0.104"
@@ -12,3 +13,8 @@ jiff = "0.2.35"
 assert_cmd = "2.2.2"
 predicates = "3.1.4"
 tempfile = "3.27.0"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
