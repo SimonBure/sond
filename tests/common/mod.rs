@@ -120,6 +120,19 @@ impl Project {
         cmd
     }
 
+    /// `sond` as run by a user who never set `$VISUAL` or `$EDITOR`. The
+    /// usual fallbacks (`vi`, `vim`, `nano`) are shadowed on `$PATH` by fakes
+    /// that record their call, so a regression shows up in
+    /// [`Self::editor_invocations`] instead of hanging the test on a real `vi`.
+    pub fn sond_without_editor(&self) -> Command {
+        let mut path = std::ffi::OsString::from(fixture("editor/fallback"));
+        path.push(":");
+        path.push(std::env::var_os("PATH").unwrap_or_default());
+        let mut cmd = self.sond();
+        cmd.env_remove("EDITOR").env("PATH", path);
+        cmd
+    }
+
     /// Names of the files in `logs/`, sorted. Empty if `logs/` does not exist.
     pub fn log_names(&self) -> Vec<String> {
         let Ok(entries) = fs::read_dir(self.logs_dir()) else {

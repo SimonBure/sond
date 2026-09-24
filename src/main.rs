@@ -21,16 +21,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Start a new investigation and open it in your editor
+    /// Start a new investigation
     New {
         /// Title of the investigation; quoting it is optional
         #[arg(required = true, num_args = 1..)]
         title: Vec<String>,
+        /// Open the new log in $VISUAL / $EDITOR
+        #[arg(short, long)]
+        edit: bool,
     },
-    /// Continue an investigation: add a dated section and open the log
+    /// Continue an investigation: add a dated section to the log
     Poke {
         /// ID of the log, e.g. R042 (the R and leading zeros are optional)
         id: String,
+        /// Open the log in $VISUAL / $EDITOR, at the new section
+        #[arg(short, long)]
+        edit: bool,
     },
     /// Find the logs that mention a phrase (literal, case-insensitive)
     Search {
@@ -64,8 +70,8 @@ enum TemplateCommand {
 
 fn main() -> Result<ExitCode> {
     let done = match Cli::parse().command {
-        Command::New { title } => new(&title.join(" ")),
-        Command::Poke { id } => poke(&id),
+        Command::New { title, edit } => new(&title.join(" "), edit),
+        Command::Poke { id, edit } => poke(&id, edit),
         Command::Search { query } => return search(&query.join(" ")),
         Command::Recent { limit } => recent(limit.get()),
         Command::Template { command } => match command {
@@ -76,7 +82,7 @@ fn main() -> Result<ExitCode> {
     done.map(|()| ExitCode::SUCCESS)
 }
 
-fn new(title: &str) -> Result<()> {
+fn new(title: &str, edit: bool) -> Result<()> {
     let title = title.trim();
     if title.is_empty() {
         bail!("title must not be empty");
@@ -87,10 +93,13 @@ fn new(title: &str) -> Result<()> {
     let path = log::create_log(Path::new(LOGS_DIR), title, now, &template)?;
 
     println!("{}", path.display());
-    editor::open(&path, None)
+    if edit {
+        editor::open(&path, None)?;
+    }
+    Ok(())
 }
 
-fn poke(id: &str) -> Result<()> {
+fn poke(id: &str, edit: bool) -> Result<()> {
     let id = log::parse_id(id)
         .with_context(|| format!("invalid log ID {id:?}, expected something like R042"))?;
     let path = log::find_log(Path::new(LOGS_DIR), id)?;
@@ -98,7 +107,10 @@ fn poke(id: &str) -> Result<()> {
     let heading = log::poke_log(&path, now)?;
 
     println!("{}", path.display());
-    editor::open(&path, Some(heading + 1))
+    if edit {
+        editor::open(&path, Some(heading + 1))?;
+    }
+    Ok(())
 }
 
 /// Exits 1 when nothing matches, like `grep`.

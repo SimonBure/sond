@@ -1,0 +1,5 @@
+#!/bin/sh
+# Shadows the real fallback editors on $PATH, so a test that unsets $EDITOR
+# can never start an interactive program. Records its call like
+# fake-editor.sh. Checked in executable, like ../code.
+exec /bin/sh "$(dirname "$0")/../fake-editor.sh" "$@"

@@ -8,8 +8,10 @@
 //!   byte of what was there (a missing final newline is added first)
 //! - if the log already ends in an empty dated section, nothing is appended
 //!   and that section is reopened
-//! - stdout is the relative path of the log, one line; then the editor opens
-//!   it at the new section
+//! - stdout is the relative path of the log, one line
+//! - no editor is opened unless asked for: with no `$VISUAL` or `$EDITOR`
+//!   set, `sond poke` still just appends the section and succeeds
+//! - with `-e` / `--edit`, the editor then opens the log at the new section
 //! - unknown IDs, duplicate IDs and invalid IDs are errors that touch nothing
 
 #![cfg(unix)]
@@ -264,13 +266,13 @@ fn poking_again_later_adds_another_section() {
     let p = project();
     p.sond()
         .env("FAKE_EDITOR_APPEND", "Halving dt fixes it.")
-        .args(["poke", "R003"])
+        .args(["poke", "-e", "R003"])
         .assert()
         .success();
     p.sond()
         .env("SOND_NOW", "2026-09-22 08:30")
         .env("FAKE_EDITOR_APPEND", "But only for the linear case.")
-        .args(["poke", "R003"])
+        .args(["poke", "-e", "R003"])
         .assert()
         .success();
 
@@ -288,10 +290,10 @@ fn poking_again_later_adds_another_section() {
 #[test]
 fn an_abandoned_empty_section_is_reopened_not_stacked() {
     let p = project();
-    p.sond().args(["poke", "R003"]).assert().success();
+    p.sond().args(["poke", "-e", "R003"]).assert().success();
     p.sond()
         .env("SOND_NOW", "2026-09-22 08:30")
-        .args(["poke", "R003"])
+        .args(["poke", "-e", "R003"])
         .assert()
         .success();
 
@@ -317,13 +319,53 @@ fn a_trailing_template_heading_is_not_mistaken_for_an_empty_poke() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn prints_the_path_and_opens_the_same_log() {
+fn does_not_open_an_editor_by_default() {
     let p = project();
     p.sond()
         .args(["poke", "R003"])
         .assert()
         .success()
         .stdout(format!("logs/{R003}\n"));
+    assert_eq!(p.read_log(R003), original(R003) + &section(NOW));
+    assert!(p.editor_invocations().is_empty());
+}
+
+#[test]
+fn without_any_editor_configured_the_section_is_just_appended() {
+    // The user's real setup: neither `$VISUAL` nor `$EDITOR` is set. Sond
+    // must not fall back to an interactive program such as `vi`.
+    let p = project();
+    p.sond_without_editor()
+        .args(["poke", "R003"])
+        .assert()
+        .success()
+        .stdout(format!("logs/{R003}\n"));
+    assert_eq!(p.read_log(R003), original(R003) + &section(NOW));
+
+    assert!(p.editor_invocations().is_empty());
+}
+
+#[test]
+fn edit_flag_prints_the_path_and_opens_the_same_log() {
+    for flag in ["-e", "--edit"] {
+        let p = project();
+        p.sond()
+            .args(["poke", flag, "R003"])
+            .assert()
+            .success()
+            .stdout(format!("logs/{R003}\n"));
+        assert_eq!(
+            p.editor_invocations(),
+            [[format!("logs/{R003}")]],
+            "for {flag}"
+        );
+    }
+}
+
+#[test]
+fn edit_flag_may_follow_the_id() {
+    let p = project();
+    p.sond().args(["poke", "R003", "-e"]).assert().success();
     assert_eq!(p.editor_invocations(), [[format!("logs/{R003}")]]);
 }
 
@@ -335,7 +377,7 @@ fn line_aware_editors_land_below_the_new_heading() {
     let code = fixture("editor/code");
     p.sond()
         .env("EDITOR", format!("{} --wait", code.display()))
-        .args(["poke", "R003"])
+        .args(["poke", "-e", "R003"])
         .assert()
         .success();
 
@@ -352,7 +394,7 @@ fn failing_editor_is_an_error_but_the_section_is_kept() {
     let p = project();
     p.sond()
         .env("EDITOR", sh_editor("editor/failing-editor.sh"))
-        .args(["poke", "R003"])
+        .args(["poke", "-e", "R003"])
         .assert()
         .failure()
         .stderr(predicate::str::contains("editor"));
@@ -402,12 +444,12 @@ fn new_then_poke_grows_one_investigation() {
     p.sond()
         .env("SOND_NOW", "2026-09-20 10:15")
         .env("FAKE_EDITOR_APPEND", "dt > 0.01 blows up.")
-        .args(["new", "Adaptive timestep instability"])
+        .args(["new", "-e", "Adaptive timestep instability"])
         .assert()
         .success();
     p.sond()
         .env("FAKE_EDITOR_APPEND", "CFL number exceeds 1 at that dt.")
-        .args(["poke", "R001"])
+        .args(["poke", "-e", "R001"])
         .assert()
         .success();
 

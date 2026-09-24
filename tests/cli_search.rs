@@ -206,7 +206,7 @@ fn text_added_after_a_poke_is_found() {
     let p = project();
     p.sond()
         .env("FAKE_EDITOR_APPEND", "Ghost cells are updated too late.")
-        .args(["poke", "R001"])
+        .args(["poke", "-e", "R001"])
         .assert()
         .success();
     assert_eq!(

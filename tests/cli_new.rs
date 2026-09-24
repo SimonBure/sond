@@ -8,7 +8,10 @@
 //! - content is the configured template (or the default) with `title`, `id`,
 //!   `created` and `date` substituted
 //! - stdout is the relative path of the new log, one line
-//! - the log is then opened with `$VISUAL`, `$EDITOR`, or `vi`
+//! - no editor is opened unless asked for: with no `$VISUAL` or `$EDITOR`
+//!   set, `sond new` still just creates the log and succeeds
+//! - with `-e` / `--edit`, the log is then opened with `$VISUAL`, `$EDITOR`,
+//!   or `vi`
 //! - an editor failure is an error, but the log is kept
 
 #![cfg(unix)]
@@ -381,10 +384,65 @@ fn unreadable_template_is_an_error_and_creates_nothing() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn opens_the_new_log_in_the_editor_once() {
+fn does_not_open_an_editor_by_default() {
     let p = Project::empty();
-    p.sond().args(["new", TITLE]).assert().success();
+    p.sond()
+        .args(["new", TITLE])
+        .assert()
+        .success()
+        .stdout(format!("logs/{FILENAME}\n"));
+    assert_eq!(p.log_names(), [FILENAME]);
+    assert!(p.editor_invocations().is_empty());
+}
+
+#[test]
+fn without_any_editor_configured_the_log_is_just_created() {
+    // The user's real setup: neither `$VISUAL` nor `$EDITOR` is set. Sond
+    // must not fall back to an interactive program such as `vi`.
+    let p = Project::empty();
+    p.sond_without_editor()
+        .args(["new", TITLE])
+        .assert()
+        .success()
+        .stdout(format!("logs/{FILENAME}\n"));
+    assert_eq!(p.log_names(), [FILENAME]);
+
+    assert!(p.editor_invocations().is_empty());
+}
+
+#[test]
+fn edit_flag_opens_the_new_log_in_the_editor_once() {
+    for flag in ["-e", "--edit"] {
+        let p = Project::empty();
+        p.sond().args(["new", flag, TITLE]).assert().success();
+        assert_eq!(
+            p.editor_invocations(),
+            [[format!("logs/{FILENAME}")]],
+            "for {flag}"
+        );
+    }
+}
+
+#[test]
+fn edit_flag_may_follow_the_title() {
+    let p = Project::empty();
+    p.sond()
+        .args(["new", "Adaptive", "timestep", "instability", "-e"])
+        .assert()
+        .success();
+    assert_eq!(p.log_names(), [FILENAME]);
     assert_eq!(p.editor_invocations(), [[format!("logs/{FILENAME}")]]);
+}
+
+#[test]
+fn a_title_can_still_contain_e_after_a_double_dash() {
+    let p = Project::empty();
+    p.sond()
+        .args(["new", "--", "-e", "mode"])
+        .assert()
+        .success();
+    assert_eq!(p.log_names(), ["R001-2026-09-21-e-mode.md"]);
+    assert!(p.editor_invocations().is_empty());
 }
 
 #[test]
@@ -395,7 +453,7 @@ fn what_the_user_types_in_the_editor_lands_in_the_log() {
             "FAKE_EDITOR_APPEND",
             "First observation: dt > 0.01 blows up.",
         )
-        .args(["new", TITLE])
+        .args(["new", "-e", TITLE])
         .assert()
         .success();
     assert!(
@@ -413,7 +471,7 @@ fn editor_flags_are_passed_through() {
             "EDITOR",
             format!("{} --wait", sh_editor("editor/fake-editor.sh")),
         )
-        .args(["new", TITLE])
+        .args(["new", "-e", TITLE])
         .assert()
         .success();
     assert_eq!(
@@ -428,7 +486,7 @@ fn visual_takes_precedence_over_editor() {
     p.sond()
         .env("VISUAL", sh_editor("editor/fake-editor.sh"))
         .env("EDITOR", sh_editor("editor/failing-editor.sh"))
-        .args(["new", TITLE])
+        .args(["new", "-e", TITLE])
         .assert()
         .success();
     assert_eq!(p.editor_invocations().len(), 1);
@@ -439,7 +497,7 @@ fn blank_visual_falls_back_to_editor() {
     let p = Project::empty();
     p.sond()
         .env("VISUAL", "  ")
-        .args(["new", TITLE])
+        .args(["new", "-e", TITLE])
         .assert()
         .success();
     assert_eq!(p.editor_invocations().len(), 1);
@@ -450,7 +508,7 @@ fn failing_editor_is_an_error_but_the_log_is_kept() {
     let p = Project::empty();
     p.sond()
         .env("EDITOR", sh_editor("editor/failing-editor.sh"))
-        .args(["new", TITLE])
+        .args(["new", "-e", TITLE])
         .assert()
         .failure()
         .stdout(format!("logs/{FILENAME}\n"))
@@ -463,7 +521,7 @@ fn missing_editor_is_an_error_but_the_log_is_kept() {
     let p = Project::empty();
     p.sond()
         .env("EDITOR", "/nonexistent/editor")
-        .args(["new", TITLE])
+        .args(["new", "-e", TITLE])
         .assert()
         .failure()
         .stderr(

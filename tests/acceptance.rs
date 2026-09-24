@@ -19,11 +19,11 @@ fn a_research_week_in_one_investigation() {
         .assert()
         .success();
 
-    // 3–4. Start an investigation and write initial observations.
+    // 3–4. Start an investigation and write initial observations in the editor.
     p.sond()
         .env("SOND_NOW", "2026-09-21 12:19")
         .env("FAKE_EDITOR_APPEND", "Unstable once dt > 0.01.")
-        .args(["new", "Adaptive timestep instability"])
+        .args(["new", "-e", "Adaptive timestep instability"])
         .assert()
         .success();
 
@@ -34,7 +34,7 @@ fn a_research_week_in_one_investigation() {
             "FAKE_EDITOR_APPEND",
             "The CFL number exceeds 1 exactly there.",
         )
-        .args(["poke", "R001"])
+        .args(["poke", "-e", "R001"])
         .assert()
         .success();
 
