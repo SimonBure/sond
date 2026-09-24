@@ -3,6 +3,8 @@ name = "sond"
 version = "0.1.0"
 edition = "2024"
 repository = "https://github.com/SimonBure/sond"
+description = "Append-only research logs, stored as Markdown next to your code or your project."
+license = "MIT"
 
 [dependencies]
 anyhow = "1.0.104"
