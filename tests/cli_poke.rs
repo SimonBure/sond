@@ -2,7 +2,7 @@
 //!
 //! Contract established here:
 //!
-//! - the log is found by the `R<id>-` prefix of its filename in `./logs/`
+//! - the log is found by the `R<id>-` prefix of its filename in `./sond/`
 //! - the ID may be typed as `R042`, `r42`, `42`, ...
 //! - Sond appends `\n---\n\n## <YYYY-MM-DD HH:MM>\n\n` and never rewrites a
 //!   byte of what was there (a missing final newline is added first)
@@ -325,7 +325,7 @@ fn does_not_open_an_editor_by_default() {
         .args(["poke", "R003"])
         .assert()
         .success()
-        .stdout(format!("logs/{R003}\n"));
+        .stdout(format!("sond/{R003}\n"));
     assert_eq!(p.read_log(R003), original(R003) + &section(NOW));
     assert!(p.editor_invocations().is_empty());
 }
@@ -339,7 +339,7 @@ fn without_any_editor_configured_the_section_is_just_appended() {
         .args(["poke", "R003"])
         .assert()
         .success()
-        .stdout(format!("logs/{R003}\n"));
+        .stdout(format!("sond/{R003}\n"));
     assert_eq!(p.read_log(R003), original(R003) + &section(NOW));
 
     assert!(p.editor_invocations().is_empty());
@@ -353,10 +353,10 @@ fn edit_flag_prints_the_path_and_opens_the_same_log() {
             .args(["poke", flag, "R003"])
             .assert()
             .success()
-            .stdout(format!("logs/{R003}\n"));
+            .stdout(format!("sond/{R003}\n"));
         assert_eq!(
             p.editor_invocations(),
-            [[format!("logs/{R003}")]],
+            [[format!("sond/{R003}")]],
             "for {flag}"
         );
     }
@@ -366,7 +366,7 @@ fn edit_flag_prints_the_path_and_opens_the_same_log() {
 fn edit_flag_may_follow_the_id() {
     let p = project();
     p.sond().args(["poke", "R003", "-e"]).assert().success();
-    assert_eq!(p.editor_invocations(), [[format!("logs/{R003}")]]);
+    assert_eq!(p.editor_invocations(), [[format!("sond/{R003}")]]);
 }
 
 #[test]
@@ -385,7 +385,7 @@ fn line_aware_editors_land_below_the_new_heading() {
     // 16, and the cursor goes on the line below it.
     assert_eq!(
         p.editor_invocations(),
-        [["--wait", "--goto", &format!("logs/{R003}:17")]]
+        [["--wait", "--goto", &format!("sond/{R003}:17")]]
     );
 }
 
@@ -463,7 +463,7 @@ fn new_then_poke_grows_one_investigation() {
     )));
     assert_eq!(
         p.editor_invocations(),
-        [[format!("logs/{name}")], [format!("logs/{name}")]]
+        [[format!("sond/{name}")], [format!("sond/{name}")]]
     );
 }
 

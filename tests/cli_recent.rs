@@ -94,7 +94,7 @@ fn no_logs_directory_is_a_clean_empty_state() {
         .success()
         .stdout("")
         .stderr(predicate::str::contains("sond new"));
-    assert!(!p.logs_dir().exists(), "recent must not create logs/");
+    assert!(!p.logs_dir().exists(), "recent must not create sond/");
 }
 
 #[test]
@@ -312,7 +312,7 @@ fn logs_path_that_is_a_file_is_an_error() {
         .arg("recent")
         .assert()
         .failure()
-        .stderr(predicate::str::contains("logs").and(predicate::str::contains("panicked").not()));
+        .stderr(predicate::str::contains("sond").and(predicate::str::contains("panicked").not()));
 }
 
 // ---------------------------------------------------------------------------

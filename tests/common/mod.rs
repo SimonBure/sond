@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! <tempdir>/
-//! ├── project/            cwd of every command; logs/ goes here
+//! ├── project/            cwd of every command; sond/ goes here
 //! ├── home/               $HOME
 //! ├── config/             $XDG_CONFIG_HOME
 //! └── editor.log          one line per editor invocation, args tab-separated
@@ -44,7 +44,7 @@ pub struct Project {
 }
 
 impl Project {
-    /// A project directory with nothing in it, not even `logs/`.
+    /// A project directory with nothing in it, not even `sond/`.
     pub fn empty() -> Self {
         let root = tempfile::tempdir().expect("create tempdir");
         let dir = root.path().join("project");
@@ -62,7 +62,7 @@ impl Project {
         }
     }
 
-    /// A project whose `logs/` holds copies of these `tests/fixtures/logs` files.
+    /// A project whose `sond/` holds copies of these `tests/fixtures/logs` files.
     pub fn with_fixture_logs(names: &[&str]) -> Self {
         let p = Self::empty();
         for name in names {
@@ -75,7 +75,7 @@ impl Project {
     }
 
     pub fn logs_dir(&self) -> PathBuf {
-        self.dir.join("logs")
+        self.dir.join("sond")
     }
 
     pub fn add_log(&self, name: &str, content: &str) {
@@ -133,7 +133,7 @@ impl Project {
         cmd
     }
 
-    /// Names of the files in `logs/`, sorted. Empty if `logs/` does not exist.
+    /// Names of the files in `sond/`, sorted. Empty if `sond/` does not exist.
     pub fn log_names(&self) -> Vec<String> {
         let Ok(entries) = fs::read_dir(self.logs_dir()) else {
             return Vec::new();

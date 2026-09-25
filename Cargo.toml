@@ -1,6 +1,6 @@
 [package]
 name = "sond"
-version = "0.1.1"
+version = "0.1.3"
 edition = "2024"
 repository = "https://github.com/SimonBure/sond"
 description = "Append-only research logs, stored as Markdown next to your code or your project."

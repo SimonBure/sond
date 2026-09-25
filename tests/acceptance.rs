@@ -64,7 +64,7 @@ fn a_research_week_in_one_investigation() {
             .unwrap()
             .map(|e| e.unwrap().file_name().into_string().unwrap())
             .collect::<Vec<_>>(),
-        ["logs"]
+        ["sond"]
     );
     assert_eq!(
         p.read_log(name),

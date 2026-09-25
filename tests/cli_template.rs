@@ -11,7 +11,7 @@
 //!   UTF-8; it does not validate placeholders
 //! - `edit` opens the template, first writing the default if there is none;
 //!   it never overwrites an existing template
-//! - both print the template's path, one line, and never touch `logs/`
+//! - both print the template's path, one line, and never touch `sond/`
 
 #![cfg(unix)]
 

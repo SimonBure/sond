@@ -8,8 +8,8 @@ use clap::{Parser, Subcommand};
 
 use sond::{clock, editor, log, template};
 
-/// Logs live in `./logs`, relative to wherever Sond is run.
-const LOGS_DIR: &str = "logs";
+/// Logs live in `./sond`, relative to wherever Sond is run.
+const LOGS_DIR: &str = "sond";
 
 /// Append-only research logs, stored as Markdown next to your code.
 #[derive(Parser)]

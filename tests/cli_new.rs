@@ -2,7 +2,7 @@
 //!
 //! Contract established here:
 //!
-//! - logs live in `./logs/`, created on demand
+//! - logs live in `./sond/`, created on demand
 //! - filename is `R<id>-<YYYY-MM-DD>-<slug>.md`
 //! - the ID is one more than the highest existing ID, starting at R001
 //! - content is the configured template (or the default) with `title`, `id`,
@@ -109,7 +109,7 @@ fn prints_the_path_of_the_new_log() {
         .args(["new", TITLE])
         .assert()
         .success()
-        .stdout(format!("logs/{FILENAME}\n"));
+        .stdout(format!("sond/{FILENAME}\n"));
 }
 
 #[test]
@@ -390,7 +390,7 @@ fn does_not_open_an_editor_by_default() {
         .args(["new", TITLE])
         .assert()
         .success()
-        .stdout(format!("logs/{FILENAME}\n"));
+        .stdout(format!("sond/{FILENAME}\n"));
     assert_eq!(p.log_names(), [FILENAME]);
     assert!(p.editor_invocations().is_empty());
 }
@@ -404,7 +404,7 @@ fn without_any_editor_configured_the_log_is_just_created() {
         .args(["new", TITLE])
         .assert()
         .success()
-        .stdout(format!("logs/{FILENAME}\n"));
+        .stdout(format!("sond/{FILENAME}\n"));
     assert_eq!(p.log_names(), [FILENAME]);
 
     assert!(p.editor_invocations().is_empty());
@@ -417,7 +417,7 @@ fn edit_flag_opens_the_new_log_in_the_editor_once() {
         p.sond().args(["new", flag, TITLE]).assert().success();
         assert_eq!(
             p.editor_invocations(),
-            [[format!("logs/{FILENAME}")]],
+            [[format!("sond/{FILENAME}")]],
             "for {flag}"
         );
     }
@@ -431,7 +431,7 @@ fn edit_flag_may_follow_the_title() {
         .assert()
         .success();
     assert_eq!(p.log_names(), [FILENAME]);
-    assert_eq!(p.editor_invocations(), [[format!("logs/{FILENAME}")]]);
+    assert_eq!(p.editor_invocations(), [[format!("sond/{FILENAME}")]]);
 }
 
 #[test]
@@ -476,7 +476,7 @@ fn editor_flags_are_passed_through() {
         .success();
     assert_eq!(
         p.editor_invocations(),
-        [["--wait".to_string(), format!("logs/{FILENAME}")]]
+        [["--wait".to_string(), format!("sond/{FILENAME}")]]
     );
 }
 
@@ -511,7 +511,7 @@ fn failing_editor_is_an_error_but_the_log_is_kept() {
         .args(["new", "-e", TITLE])
         .assert()
         .failure()
-        .stdout(format!("logs/{FILENAME}\n"))
+        .stdout(format!("sond/{FILENAME}\n"))
         .stderr(predicate::str::contains("editor"));
     assert_eq!(p.log_names(), [FILENAME]);
 }
@@ -543,7 +543,7 @@ fn logs_path_that_is_a_file_is_an_error_not_a_panic() {
         .args(["new", TITLE])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("logs").and(predicate::str::contains("panicked").not()));
+        .stderr(predicate::str::contains("sond").and(predicate::str::contains("panicked").not()));
     assert_eq!(fs::read_to_string(p.logs_dir()).unwrap(), "not a directory");
     assert!(p.editor_invocations().is_empty());
 }

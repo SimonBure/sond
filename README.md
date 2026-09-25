@@ -11,7 +11,7 @@ The name is the French *sonder*, to probe or to sound out, cut short.
 
 A Sond log represents one investigation. `new` starts one, `poke` continues
 it, `search` finds past investigations, and `recent` shows what you have been
-working on. Logs are ordinary Markdown files in `./logs/`: no database, no Git
+working on. Logs are ordinary Markdown files in `./sond/`: no database, no Git
 requirement, readable and searchable with any editor, `grep`, or `rg`.
 
 ## Install
@@ -36,7 +36,7 @@ export EDITOR="nvim"            # terminal editors need no flag
 Open a new terminal (or run `source ~/.bashrc`) for it to take effect. Then
 `sond new -e <title>`:
 
-1. creates `logs/R<id>-<date>-<slug>.md` from the template,
+1. creates `sond/R<id>-<date>-<slug>.md` from the template,
 2. prints its path,
 3. runs `$EDITOR <path>` and waits for it to exit,
 4. exits with an error if the editor fails, but keeps the log.
@@ -58,7 +58,7 @@ Without `$VISUAL` or `$EDITOR`, `-e` and `template edit` fall back to `vi`
 
 ```sh
 sond new Adaptive timestep instability   # quotes optional
-# logs/R001-2026-09-21-adaptive-timestep-instability.md
+# sond/R001-2026-09-21-adaptive-timestep-instability.md
 sond new -e Mesh refinement              # -e / --edit: also open it in $EDITOR
 
 sond poke R001                           # also R1, r001, 1

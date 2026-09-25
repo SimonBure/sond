@@ -4,7 +4,7 @@
 //!
 //! - the query is a literal, case-insensitive phrase; unquoted words are
 //!   joined with single spaces, like `new` titles
-//! - every line of every log in `./logs/` is searched, titles included;
+//! - every line of every log in `./sond/` is searched, titles included;
 //!   files that are not logs are not
 //! - output is grouped by log, most recently active first (as `recent`):
 //!   `<id>  <title>` then `<line number, width 4>: <line>`, groups separated
@@ -282,5 +282,5 @@ fn logs_path_that_is_a_file_is_an_error() {
         .args(["search", "CFL"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("logs").and(predicate::str::contains("panicked").not()));
+        .stderr(predicate::str::contains("sond").and(predicate::str::contains("panicked").not()));
 }
