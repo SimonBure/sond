@@ -7,6 +7,15 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 
 use sond::{clock, editor, log, template};
+#[cfg(feature = "ask")]
+use {
+    sond::chunk::{self, Chunk},
+    sond::embed,
+    sond::index::{self, Index},
+    std::collections::HashMap,
+    std::fs,
+    std::io::IsTerminal,
+};
 
 /// Logs live in `./sond`, relative to wherever Sond is run.
 const LOGS_DIR: &str = "sond";
@@ -44,6 +53,17 @@ enum Command {
         #[arg(required = true, num_args = 1..)]
         query: Vec<String>,
     },
+    /// Build the semantic index that `ask` searches (downloads the model once)
+    Index,
+    /// Find the sections closest in meaning to a question
+    Ask {
+        /// The question; quoting it is optional
+        #[arg(required = true, num_args = 1..)]
+        question: Vec<String>,
+        /// How many sections to show
+        #[arg(short = 'n', long, default_value = "5")]
+        limit: NonZeroUsize,
+    },
     /// List investigations, most recently active first
     Recent {
         /// How many to show
@@ -73,6 +93,8 @@ fn main() -> Result<ExitCode> {
         Command::New { title, edit } => new(&title.join(" "), edit),
         Command::Poke { id, edit } => poke(&id, edit),
         Command::Search { query } => return search(&query.join(" ")),
+        Command::Index => index(),
+        Command::Ask { question, limit } => return ask(&question.join(" "), limit.get()),
         Command::Recent { limit } => recent(limit.get()),
         Command::Template { command } => match command {
             TemplateCommand::Edit => template_edit(),
@@ -138,6 +160,189 @@ fn search(query: &str) -> Result<ExitCode> {
         .collect();
     print(&groups.join("\n"))?;
     Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(not(feature = "ask"))]
+const NO_ASK: &str = "semantic search is not in this build of sond; install it with `cargo install sond --features ask`";
+
+#[cfg(not(feature = "ask"))]
+fn index() -> Result<()> {
+    bail!(NO_ASK)
+}
+
+#[cfg(not(feature = "ask"))]
+fn ask(_question: &str, _limit: usize) -> Result<ExitCode> {
+    bail!(NO_ASK)
+}
+
+#[cfg(feature = "ask")]
+fn index() -> Result<()> {
+    let logs = log::load_logs(Path::new(LOGS_DIR))?;
+    if logs.is_empty() {
+        bail!("no logs in ./{LOGS_DIR} to index");
+    }
+    let dir = model_dir()?;
+    if !embed::is_installed(&embed::MODEL, &dir)? {
+        confirm_download(&dir)?;
+    }
+    let mut model = embed::Model::load(&embed::MODEL, &dir, true)?;
+
+    let path = index_path();
+    let created = !path.exists();
+    // A damaged index is rebuilt from scratch.
+    let old = read_index(&path).ok().flatten().unwrap_or(Index {
+        model: String::new(),
+        entries: Vec::new(),
+    });
+    let new = index::refresh(old, embed::MODEL.name, log_chunks(&logs), |texts| {
+        model.passages(texts)
+    })?;
+    write_index(&path, &new)?;
+    if created {
+        ignore_index()?;
+    }
+
+    println!(
+        "indexed {} sections from {} logs into {}",
+        new.entries.len(),
+        logs.len(),
+        path.display()
+    );
+    Ok(())
+}
+
+/// Exits 1 when the index has no sections at all.
+#[cfg(feature = "ask")]
+fn ask(question: &str, limit: usize) -> Result<ExitCode> {
+    let question = question.trim();
+    if question.is_empty() {
+        bail!("question must not be empty");
+    }
+    let path = index_path();
+    let Some(old) = read_index(&path)? else {
+        bail!("no semantic index in ./{LOGS_DIR}; build it with `sond index`");
+    };
+    let dir = model_dir()?;
+    if !embed::is_installed(&embed::MODEL, &dir)? {
+        bail!("the embedding model is not installed; install it with `sond index`");
+    }
+    let mut model = embed::Model::load(&embed::MODEL, &dir, false)?;
+
+    let logs = log::load_logs(Path::new(LOGS_DIR))?;
+    let current = index::refresh(old.clone(), embed::MODEL.name, log_chunks(&logs), |texts| {
+        model.passages(texts)
+    })?;
+    if current != old {
+        write_index(&path, &current)?;
+    }
+
+    let hits = index::top_k(&model.query(question)?, &current.entries, limit);
+    if hits.is_empty() {
+        eprintln!("the index has no sections to search");
+        return Ok(ExitCode::FAILURE);
+    }
+    let titles: HashMap<u32, &str> = logs.iter().map(|(l, _)| (l.id, l.title.as_str())).collect();
+    let hits: Vec<String> = hits
+        .iter()
+        .map(|&(i, score)| {
+            let e = &current.entries[i];
+            format!(
+                "{}  {}\n  L{}  ## {}  {score:.2}\n",
+                log::format_id(e.log),
+                titles.get(&e.log).unwrap_or(&""),
+                e.chunk.line,
+                e.chunk.heading
+            )
+        })
+        .collect();
+    print(&hits.join("\n"))?;
+    Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(feature = "ask")]
+fn model_dir() -> Result<PathBuf> {
+    embed::cache_dir().context("cannot locate the cache directory: set HOME or XDG_CACHE_HOME")
+}
+
+/// Asks before downloading the model; without a terminal to ask in, refuses.
+#[cfg(feature = "ask")]
+fn confirm_download(dir: &Path) -> Result<()> {
+    let m = &embed::MODEL;
+    if !io::stdin().is_terminal() {
+        bail!(
+            "the embedding model {} ({}) is not installed; run `sond index` in a terminal to download it",
+            m.name,
+            m.size
+        );
+    }
+    eprint!(
+        "Semantic search needs the embedding model {} ({}), downloaded once into {}.\nDownload it now? [y/N] ",
+        m.name,
+        m.size,
+        dir.display()
+    );
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    if !matches!(answer.trim().to_lowercase().as_str(), "y" | "yes") {
+        bail!("the model was not downloaded; `sond ask` needs it");
+    }
+    Ok(())
+}
+
+#[cfg(feature = "ask")]
+fn index_path() -> PathBuf {
+    Path::new(LOGS_DIR).join(index::INDEX_FILE)
+}
+
+/// The index at `path`, or `None` when there is none.
+#[cfg(feature = "ask")]
+fn read_index(path: &Path) -> Result<Option<Index>> {
+    match fs::read(path) {
+        Ok(bytes) => index::decode(&bytes).map(Some).with_context(|| {
+            format!(
+                "{} is damaged; rebuild it with `sond index`",
+                path.display()
+            )
+        }),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e).with_context(|| format!("could not read {}", path.display())),
+    }
+}
+
+/// Writes through a temporary file, so an interrupted write leaves the old
+/// index whole.
+#[cfg(feature = "ask")]
+fn write_index(path: &Path, index: &Index) -> Result<()> {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, index::encode(index))
+        .and_then(|()| fs::rename(&tmp, path))
+        .with_context(|| format!("could not write {}", path.display()))
+}
+
+#[cfg(feature = "ask")]
+fn log_chunks(logs: &[(log::LogSummary, String)]) -> Vec<(u32, Chunk)> {
+    logs.iter()
+        .flat_map(|(l, content)| {
+            chunk::chunks(&l.title, content)
+                .into_iter()
+                .map(|c| (l.id, c))
+        })
+        .collect()
+}
+
+/// Adds the index to `./.gitignore`, when there is one.
+#[cfg(feature = "ask")]
+fn ignore_index() -> Result<()> {
+    let path = Path::new(".gitignore");
+    let current = match fs::read_to_string(path) {
+        Ok(current) => current,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e).with_context(|| format!("could not read {}", path.display())),
+    };
+    if let Some(updated) = index::with_index_ignored(&current) {
+        fs::write(path, updated).with_context(|| format!("could not write {}", path.display()))?;
+    }
+    Ok(())
 }
 
 fn recent(limit: usize) -> Result<()> {

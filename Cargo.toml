@@ -1,6 +1,6 @@
 [package]
 name = "sond"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2024"
 repository = "https://github.com/SimonBure/sond"
 description = "Append-only research logs, stored as Markdown next to your code or your project."
@@ -10,6 +10,13 @@ license = "MIT"
 anyhow = "1.0.104"
 clap = { version = "4.6.6", features = ["derive"] }
 jiff = "0.2.35"
+fastembed = { version = "7.1", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"], optional = true }
+hf-hub = { version = "0.5", default-features = false, optional = true }
+
+[features]
+# Semantic search (`sond index`, `sond ask`): links ONNX Runtime statically,
+# and downloads the embedding model on first use.
+ask = ["dep:fastembed", "dep:hf-hub"]
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
@@ -20,3 +27,7 @@ tempfile = "3.27.0"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[[example]]
+name = "eval"
+required-features = ["ask"]

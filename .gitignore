@@ -4,3 +4,5 @@
 /graft/
 
 /claude/
+# Model comparison: its queries name local paths and private research.
+/bench/

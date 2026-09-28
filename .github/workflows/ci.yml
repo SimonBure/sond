@@ -30,5 +30,11 @@ jobs:
       - name: Test
         run: cargo test
 
+      - name: Clippy (ask)
+        run: cargo clippy --all-targets --features ask -- -D warnings
+
+      - name: Test (ask)
+        run: cargo test --features ask
+
       - name: Build
         run: cargo build --release

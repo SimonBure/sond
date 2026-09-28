@@ -10,9 +10,11 @@ Append-only research logs, stored as Markdown next to your code or your project.
 The name is the French *sonder*, to probe or to sound out, cut short.
 
 A Sond log represents one investigation. `new` starts one, `poke` continues
-it, `search` finds past investigations, and `recent` shows what you have been
-working on. Logs are ordinary Markdown files in `./sond/`: no database, no Git
-requirement, readable and searchable with any editor, `grep`, or `rg`.
+it, `search` finds past investigations, `ask` finds them by meaning (optional,
+see [Semantic search](#semantic-search-optional)), and `recent` shows what you
+have been working on. Logs are ordinary Markdown files in `./sond/`: no
+database, no Git requirement, readable and searchable with any editor, `grep`,
+or `rg`.
 
 ## Install
 
@@ -54,6 +56,26 @@ the new dated section; Zed opens the file at the top.
 Without `$VISUAL` or `$EDITOR`, `-e` and `template edit` fall back to `vi`
 (`Esc`, then `:q!` to leave it). Plain `new` and `poke` never open anything.
 
+### Semantic search (optional)
+
+`sond ask` finds the sections closest in meaning to a question, in any
+language the logs are written in. It runs an embedding model locally, so it
+is a build feature, off by default:
+
+```sh
+cargo install sond --features ask          # from crates.io
+cargo install --path . --features ask      # from a clone
+```
+
+The binary grows from about 2 MB to about 40 MB (ONNX Runtime is linked in).
+Not available on Intel Macs, for which ONNX Runtime ships no prebuilt library.
+Without the feature, `index` and `ask` say how to get it.
+
+Run `sond index` once per project, in a terminal: the first time, it asks
+before downloading the model (EmbeddingGemma 300M, 4-bit, about 200 MB) into
+`$XDG_CACHE_HOME/sond` (default `~/.cache/sond`), shared by every project.
+If `HF_HOME` is set, the model goes there instead.
+
 ## Usage
 
 ```sh
@@ -67,6 +89,12 @@ sond poke R001                           # also R1, r001, 1
 sond search CFL instability              # quotes optional
 # R001  Adaptive timestep instability
 #   12: Unstable once the CFL instability kicks in at dt > 0.01.
+
+sond index                               # once: builds sond/.index
+sond ask why does the solver blow up     # quotes optional; 5 hits by default
+# R001  Adaptive timestep instability
+#   L10  ## Investigation  0.62
+sond ask -n 10 which datasets did we consider
 
 sond recent                              # newest first, 10 by default
 # R001  2026-09-22 08:30  Adaptive timestep instability
@@ -98,6 +126,11 @@ relative to the current directory.
 - **search** is literal and case-insensitive: `a.b*` means those four
   characters. Results are grouped by log, most recently active first, with
   line numbers. It exits 1 when nothing matches, like `grep`.
+- **ask** searches `sond/.index`: one vector per `##` section (long sections
+  are split at paragraphs; text before the first `##` is left out). It
+  updates the index itself before answering, embedding only the sections that
+  are new or changed, so `sond index` is needed only once. Creating the index
+  adds `sond/.index` to `./.gitignore`, if there is one.
 - **recent** orders logs by the latest of their `Created:` line, dated
   sections, and filename date. File modification times are ignored.
 - **Templates** live at `$XDG_CONFIG_HOME/sond/template.md` (default
@@ -128,7 +161,14 @@ relative to the current directory.
 
 ```sh
 cargo test
+cargo test --features ask                        # semantic search too
+cargo test --features ask -- --include-ignored   # and those needing the model
 ```
+
+The tests needing the model use the one installed in your cache (run
+`sond index` once first). `examples/eval.rs` compares embedding models on real logs, from a
+file of queries and the sections they should find; EmbeddingGemma was chosen
+with it (`cargo run --release --features ask --example eval -- queries.tsv`).
 
 Tests never touch your real `$HOME`, editor, or clock: each runs in a temporary
 project with a fake editor and a fixed time (`SOND_NOW="YYYY-MM-DD HH:MM"`).

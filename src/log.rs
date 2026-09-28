@@ -187,7 +187,7 @@ pub struct LogSummary {
 
 /// Every log in `logs_dir` with its content, most recently active first. Logs
 /// with no known activity come last; ties go to the higher ID.
-fn load_logs(logs_dir: &Path) -> Result<Vec<(LogSummary, String)>> {
+pub fn load_logs(logs_dir: &Path) -> Result<Vec<(LogSummary, String)>> {
     let mut logs = Vec::new();
     for (file, path) in list_logs(logs_dir)? {
         let bytes =
