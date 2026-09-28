@@ -152,8 +152,10 @@ pub fn decode(bytes: &[u8]) -> Result<Index> {
         let dim = r.u32()?;
         let vector = r
             .take(dim.saturating_mul(4))?
-            .chunks_exact(4)
-            .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|b| f32::from_le_bytes(*b))
             .collect();
         entries.push(Entry {
             log,
